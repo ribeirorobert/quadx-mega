@@ -1,18 +1,18 @@
-# Quadx-Mega: Quadricoptero com Arduino Mega (Quadcopter with Arduino Mega)
-QuadX-Mega é um quadricoptero desenvolvido com um microcontrolador Arduino Mega PRO mini. O objetivo desse repositório é apresentar de forma simples e direta o hardware e software necessários para a construção de um drone caseiro. A descrição desse projeto tem como base o trabalho de Joop Brokking e é totalmente sem fins lucrativos.
+# Quadx-Mega: Quadricoptero com Arduino (Quadcopter with Arduino)
+QuadX-Mega é um quadricoptero desenvolvido com um microcontrolador Arduino Mega Pro mini. O objetivo desse repositório é apresentar de forma simples e direta o hardware e software necessários para a construção de um drone caseiro. A descrição desse projeto tem como base o trabalho de Joop Brokking e totalmente sem fins lucrativos.
 
-Esse é projeto destinado a pessoas que gostam de programação, eletrônica, drones, hobbistas e entusiasta de aeromodelos e aviação. Em caso de dúvidas podem entrar em contato direto pelo git ou através do meu e-mail: robertribeiro100@gmail.com. 
+Esse projeto destinado a pessoas que gostam de programação, eletrônica, drones, hobbistas e entusiasta de aeromodelos e aviação. Em caso de dúvidas podem entrar em contato direto pelo GitHub ou através do e-mail: robertribeiro100@gmail.com. 
 
-Para mais informações visite: http://www.brokking.net/.
+Site do Joop Brokking: http://www.brokking.net/.
 
-| ![image"](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4583.jpg) | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4583.jpg) | 
 |:--:| 
 | **Fig. 1** *QuadX-Mega* |
 
 <!-- ![image](https://github.com/ribeirorobert/quadx-mega/edit/feature/altitude-hold/Images/IMG_4565.jpg) -->
 
 # Hardware
-A seguir é listado os componentes e peças utilizadas para a construção do drone. Entretanto, fica a critério e de total responsabilidade de quem está construindo escolher os itens que irão compor o projeto. Ainda, destaco que nem todos esses componentes são os melhores e mais indicados do mercado, não sendo objetivo construir um drone com melhor preço, com voos a longas distâncias tão pouco a análise da capacidade de carga e duração de voo.
+A seguir é listado os componentes e peças utilizadas para a construção do quadricoptero. Entretanto, fica a critério e responsabilidade de quem está construindo escolher os itens que irão compor o projeto. Ainda, reforço que nem todos esses componentes são os melhores e mais indicados do mercado, não sendo objetivo construir um drone com melhor preço, com voos a longas distâncias tão pouco a análise da capacidade de carga e duração de voo.
 
 * 1x Frame F450.
 * 4x Motor Brushless ReadyToSky 2212 920KV.
@@ -21,38 +21,40 @@ A seguir é listado os componentes e peças utilizadas para a construção do dr
 * 1x Bateria de Lipo 3S ou 4S com capacidade maior ou igual a 3000mAh. 
 * 1x Carregador de bateria Lipo.
 * 1x Indicador e alarme de bateria (opcional)
-* 1x Radio controle de no mínimo 6 canais. 
-* 1x Arduino Mega PRO mini.
-* 1x Acelerômetro e Giroscópio MPU6050
-* 1x Magnetômetro (opcional)
-* 1x Sensor de pressão barométrica (opcional)
+* 1x Radio controle com no mínimo 6 canais. 
+* 1x Arduino Mega Pro mini.
+* 1x Módulo MPU6050 -> Acelerômetro e Giroscópio 
+* 1x Módulo HMC5883L -> Magnetômetro (opcional)
+* 1x Módulo MS5611 -> Sensor de pressão barométrica (opcional)
 * 1x Módulo GPS NEO 6MV2 (opcional)
 * 1x Módulo de comunicação RF Xbee, Lora, NRF24L01 ou APC220 (opcional)
-* 1x buzzer 5V
+* 1x Buzzer 5V
 * 1x LED vermelho
 * 1x LED verde
 * 1x LED amarelo
 * 1x Balanceador de hélice
-* 1x Cinta para a bateria (opcional)
+* 1x Cinta para fixar bateria (opcional)
 
 Observações: 
 1. Os motores utilizados possuem furação de fixação em conformidade com o frame. Se optar por utilizar outro conjunto, verifique se a fixação dos motores é coerente com a do frame. 
 2. KV: constante de velocidade (para cada 1V de tensão de alimentação há um incremento teórico da velocidade de 920 rpm).
-3. Os ESC's utilizados suportam baterias de 3S e 4S.
+3. Os ESC's utilizados suportam baterias de 2S a 4S.
 4. A escolha da hélice tem relação com o tipo de drone que se deseja construir. Algumas são para aplicações onde a prioridade é velocidade. Por outro lado há hélices que são para aplicações onde o peso é o mais importante. Hélices do modelo 10x4.5 são muito comuns e estão no meio termo entre velocidade-peso.
-5. O indicador de alarme da bateria é muito útil principalmente para quem está aprendendo a controlar drones/aeromodelos e aqueles que ainda não possuem telemetria integrado. É emitido um alarme sonoro quando a tensão da bateria chegar a uma tensão de limiar pré-definida. O QuadX-Mega possui uma lógica para emitir alarme quando a tensão da bateria atingir 10.7V. Em geral, é definido uma tensão de descarga mínima para cada célula da bateria para garantir sua vida útil. Descargas profundas reduzem a vida útil da bateria. Para o QuadX-Mega a tensão de descarga mínima por célula é de 3,5V com acréscimo de 0,2V como margem de segurança. Em situações em que o quadricoptero esteja a uma distância considerável do operador é aconselhável ter um pouco mais de energia para ganrantir o retorno de forma segura.
-6. Em geral um rádio de apenas 4 canais (Roll-CH1, Pitch-CH2, Yaw-CH4 e Throttle-CH3) é suficiente para controlar um drone simples. Entretando, quanto maior o número de canais mais configurações e opções podem ser adicionados.
-7. A escolha do Arduino Mega PRO mini é em função da quantidade de I/Os e tamanho. Outros microcontroladores como Arduino UNO, Arduino Nano, ESP32 ou STM32F103 poderiam ser utilizados tomando os devidos cuidados e modificações pertinentes a cada sistema.
-8. O módulo MPU6050 foi utilizado devido a sua qualidade. Existem diversos modelos de acelerômetros disponível e módulos com mais graus de liberdade (DOFs) como de exemplo o MPU9250 que é um módulo com 9DOFs (acelerômetro, giroscópio e bússola).
-9. A PCI (Placa de Circuito Impresso) projetada permite a utilização de diversos sensores e módulos. São eles: MPU6050, MPU9250, BMP180 ou BMP085, HMC5883L ou MS5611, NEO-6MV2 e módulos para telemetria via comunicação serial.
+5. O indicador de alarme da bateria é muito útil principalmente para quem está aprendendo a controlar drones/aeromodelos e aqueles que ainda não possuem telemetria integrado. É emitido um alarme sonoro quando a tensão da bateria chega a tensão de limiar pré-definida. O QuadX-Mega possui uma lógica para emitir alarme quando a tensão da bateria atingir 10.7V. Em geral, é definido uma tensão de descarga mínima para cada célula da bateria para garantir sua vida útil. Descargas profundas reduzem a vida útil da bateria. Para o QuadX-Mega a tensão de descarga mínima por célula é de 3,5V com acréscimo de 0,2V como margem de segurança. Em situações em que o quadricoptero esteja a uma distância considerável do operador é aconselhável ter um pouco mais de energia para ganrantir o retorno de forma segura.
+6. Em geral um rádio de apenas 4 canais (Roll-CH1, Pitch-CH2, Yaw-CH4 e Throttle-CH3) é suficiente para controlar um drone simples. Entretando, quanto maior o número de canais mais configurações e comandos podem ser adicionados.
+7. A escolha do Arduino Mega Pro mini é em função da quantidade de I/Os e tamanho. Outros microcontroladores como Arduino UNO, Arduino Nano, ESP32 ou STM32F103 poderiam ser utilizados tomando os devidos cuidados e modificações pertinentes a cada sistema.
+8. O módulo MPU6050 foi utilizado devido a sua qualidade. Existem diversos modelos de acelerômetros disponível no mercado e alguns com mais graus de liberdade (DOFs) como de exemplo o MPU9250 que é um módulo com 9DOFs (acelerômetro, giroscópio e bússola).
+9. A PCI (Placa de Circuito Impresso) projetada permite a utilização de diversos sensores e módulos. São eles: MPU6050, MPU9250, BMP180 ou BMP085, HMC5883L, MS5611, GPS NEO-6MV2 e módulos para telemetria via comunicação serial.
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4565.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4565.jpg)   | 
 |:--:| 
 | **Fig. 2** *Eletrônica do quadricoptero* |
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4566.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4566.jpg)   | 
 |:--:| 
 | **Fig. 3** *Eletrônica do quadricoptero* |
+
+O esquemático, lista de componentes e o arquivo Gerber da PCI estão na pasta [PCI do repositório] (). 
 
 # Arquivos .STL (STL Files)
 Os arquivos .STL utilizados no projeto podem ser acessados diretamente na pasta "STL_files" do repositório. São eles:
@@ -74,6 +76,26 @@ O código tem tamanho relativamente grande. Alguns rotinas e funções important
 
 ### Defines
 Os defines são utilizados para deixar o código mais limpo e organizado além de possibilidar uma maior dinâmica do que está ou não habilitado (flags). Algumas constantes foram definidas com base no datasheet e dados técnicos dos sensores, por outro lado algumas contantes foram obtidas em referência ao trabalho de Joop Brokking ou de forma empírica. Ao mudar alguma constante ou flag tenha certeza do que está fazendo.
+
+As flags a seguir têm função de: habilitar a função de telemetria (se utilizada), habilitar a portal serial do Arduino (para debug), habilitar a rotina com diversas telas de debug, habilitar funções do sensor BMP180 ou MS5611, habilitar rotina de fail safe se implementada, respectivamente. 
+
+```
+#define TELEMETRY_ENABLE    0
+#define SERIAL_ENABLE       0
+#define PRINTF_ENABLE       0
+#define BMP180_ENABLE       0
+#define MS5611_ENABLE       1
+#define FAIL_SAFE           0
+```
+
+Já as flags a seguir tem função de habilitar o debug do status do sensores na inicialização do quadricoptero, debug da EEPROM, debug da calibração da IMU, debug da calibração dos ESC's.
+
+```
+#define DEBUG_STATUS        0
+#define DEBUG_EEPROM        0
+#define DEBUG_MPU           0
+#define DEBUG_ESC           0
+```
 
 ### Variáveis
 As variáveis em sua maioria são para armazenar os dados dos sensores, controle PID dos ângulo de rolagem (Roll), arfagem (Pitch) e guinada (Yaw), tensão da bateria e status do quadricoptero de modo geral.
@@ -97,13 +119,13 @@ https://www.youtube.com/watch?v=j-kE0AMEWy4&t=9s
 
 O status dos motores é divido em três categorias, são elas: LOCK, IDLE e FULL. No status de LOCK os motores permanecem desligados. Já no status de IDLE os motores são acionados em rotação mínima e por fim em FULL os motores podem assumir rotação entre minimo e máximo de acordo com a posição do stick de throttle do radio controle. O objetivo dessa implementação é evitar que por alguns descuido ou de maneira não intencional os motores sejam acionados. Lembrando que motores brushless atingem rotações elevadas e com a hélice conectada tornam-se perigosos.
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4580_1.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_1.jpg)   | 
 |:--:| 
 | **Fig. 4** *Comando para ligar os motores* |
 
 Seguindo a indicação das setas mostrado na Figura acima, uma primeira tentativa o status dos motores em LOCK muda para IDLE e um segunda tentativa os motores mudam para o status de FULL, ou seja, aceleração desbroqueada. Para desligar basta seguir a instrução da Figura abaixo.
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4580_2.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_2.jpg)   | 
 |:--:| 
 | **Fig. 5** *Comando para desligar os motores* |
 
@@ -111,37 +133,45 @@ Seguindo a indicação das setas mostrado na Figura acima, uma primeira tentativ
 
 Da mesma forma para calibrar o giroscópio é preciso executar a instrução indicada em vermelho duas vezes. Caso queira cancelar a calibração, basta executar a indicação em azul.
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4580_3.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_3.jpg)   | 
 |:--:| 
 | **Fig. 6** *Comando calibrar o giroscópio* |
-
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4580_6.jpg)   | 
-|:--:| 
-| **Fig. 7** *Comando para cancelar* |
 
 * Calibrar IMU -> Acelerômetro
 
 Para calibrar o acelerômetro é preciso executar a instrução indicada em vermelho duas vezes. Caso queira cancelar a calibração, basta executar a indicação em azul.
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4580_4.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_4.jpg)   | 
 |:--:| 
 | **Fig. 8** *Comando para calibrar o acelerômetro* |
 
 * Calibrar os ESC's
 
-Para calibrar os ESC's é preciso executar a instrução indicada em vermelho duas vezes. Caso queira cancelar a calibração, basta executar a indicação em azul. Porém, a calibração dos controladores dos motores possui um terceira etapa que é desconectar a bateria colocar o stick de throttle na posição máxima. Em seguida conectar novamente a bateria e aguardar o beep dos motores, depois mover o stick para posição mínima e um beep será reproduzido novamente. Tudo executado correntamente basta realizar o comando para sair da calibração. Se esse comando não for executado, toda vez que o drone for ligado a rotina de calibração dos ESC's será executada primeiro.
+Para calibrar os ESC's é preciso executar a instrução indicada em vermelho duas vezes. Caso queira cancelar a calibração, basta executar a indicação em azul. Porém, a calibração dos ESC's possui um terceira etapa que é desconectar a bateria colocar o stick de throttle na posição máxima. Em seguida conectar novamente a bateria e aguardar o beep dos motores, depois mover o stick para posição mínima e um beep será reproduzido novamente. Tudo executado correntamente basta realizar o comando para sair da calibração. Se esse comando não for executado, toda vez que o drone for ligado a rotina de calibração dos ESC's será executada primeiro.
 
-| ![image](https://github.com/ribeirorobert/quadx-mega/blob/development/Images/IMG_4580_5.jpg)   | 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_5.jpg)   | 
 |:--:| 
-| **Fig. 8** *Comando para calibrar os ESC's* |
+| **Fig. 9** *Comando para calibrar os ESC's* |
 
-* Habilitar a função de Altitude Hold (em desenvolvimento)
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_6.jpg)   | 
+|:--:| 
+| **Fig. 10** *Comando para cancelar* |
+
+* Habilitar Altitude Hold (em desenvolvimento)
 
 Quando habilitada a rotina de Altitude Hold possibilita com o que o quadricoptero permanace em uma altitude fixa usando como referência a pressão barométrica. Ao mover o stick de throttle essa referência de altitude é atualizada até que o stick retorne a posição central. 
 
 Para mais informações e implementação visite: https://www.youtube.com/watch?v=2BLb6qUKikI&t=702s
 
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_11.jpg)   | 
+|:--:| 
+| **Fig. 11** *Hibilitar o Altitude Hold* |
+
 * Ligar/Desligar LEDs do frame
+
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_12.jpg)   | 
+|:--:| 
+| **Fig. 12** *Acionar os LEDs do frame* |
 
 Observações: Algumas rotinas possuem um timeout, ou seja, ao selecionar uma calibração mas não confirmar, após um intervalo de tempo de 2 minutos a instrução será cancelada. Ainda, para habilitar a calibração do acelerômetro, giroscópio e ESC's o status dos motores precisa necessarimente ser LOCK, ou seja, só é possível acionar essas funções com os motores desligados. Há um display de 7 segmentos para auxiliar de maneira visual nessas instruções. Em caso de erro de calibração uma mensagem será exibida na tela e o drone ficará bloqueado para voo. Nessa situação desconecte a bateria e realize o procedimento novamente. 
 
