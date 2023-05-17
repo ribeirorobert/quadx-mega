@@ -57,7 +57,7 @@ Observações:
 O esquemático, lista de componentes e o arquivo Gerber da PCI estão na [pasta PCI](https://github.com/ribeirorobert/quadx-mega/tree/main/PCI) do repositório. 
 
 # Arquivos .STL (STL Files)
-Os arquivos .STL utilizados no projeto podem ser acessados diretamente na pasta [STL_files]() do repositório. São eles:
+Os arquivos .STL utilizados no projeto podem ser acessados diretamente na pasta [STL_files](https://github.com/ribeirorobert/quadx-mega/tree/main/STL_files) do repositório. São eles:
 * Skid do trem de pouso.
 * Suporte para bateria.
 * Case principal.
@@ -213,7 +213,7 @@ https://www.youtube.com/watch?v=IsxJD7lS0Go
 http://electronoobs.com/eng_robotica_tut9_1.php
 
 # Montagem (The build)
-Para mais detalhes da montagem acesse a pasta de [Imagens]() no repositório.
+Para mais detalhes da montagem acesse a pasta de [Imagens](https://github.com/ribeirorobert/quadx-mega/tree/main/Images) no repositório.
 
 # Trabalhos Futuros (Future Works)
 * Altitude Hold
