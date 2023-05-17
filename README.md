@@ -109,12 +109,13 @@ O setup é função responsável por definir quais pinos do microcontrolador ser
 1. acc_gyro_values(): Essa rotina é responsável por aquisitar os bytes do registradores do acelerômetro e giroscópio do sensor MPU6050 e ainda subtrair dos valores de calibração.
 
 2. euler_angles(): É responsável por filtrar os dados obtidos na função anterior e computar os ângulos de Roll e Pitch através das Equações de Euler. 
+
 Para mais informações visite: 
-https://www.youtube.com/watch?v=pQ24NtnaLl8 
-https://en.wikipedia.org/wiki/Euler_angles
-https://www.youtube.com/watch?v=5IkPWZjUQlw&t=17s
-https://www.youtube.com/watch?v=nCPEJTUYch8&t=616s
-https://www.youtube.com/watch?v=j-kE0AMEWy4&t=9s
+- https://www.youtube.com/watch?v=pQ24NtnaLl8 
+- https://en.wikipedia.org/wiki/Euler_angles
+- https://www.youtube.com/watch?v=5IkPWZjUQlw&t=17s
+- https://www.youtube.com/watch?v=nCPEJTUYch8&t=616s
+- https://www.youtube.com/watch?v=j-kE0AMEWy4&t=9s
 
 3. read_radio_commands(): Essa função é responsável por interpretar alguns comandos combinados do rádio.
 * Ligar/Desligar os motores
@@ -151,11 +152,11 @@ Para calibrar o acelerômetro é preciso executar a instrução indicada em verm
 
 Para calibrar os ESC's é preciso executar a instrução indicada em vermelho duas vezes (Figura 9). Caso queira cancelar a calibração, basta executar a indicação em azul (Figura 10). Porém, a calibração dos ESC's possui um terceira etapa da seguinte forma: 
 
-- Desconecte a bateria colocar o stick de throttle na posição máxima. 
-  - Em seguida conectar novamente a bateria e aguardar o beep dos motores.
-    -Mover o stick para posição mínima e um beep será reproduzido novamente. 
+- Desconecte a bateria e mova o stick do throttle para a posição máxima. 
+- Conecte a bateria novamente e aguarde o beep dos motores.
+- Mova o stick do throttle para a posição mínima e aguarde o beep dos motores novamente. 
     
-Tudo executado correntamente basta realizar o comando para sair da calibração (Figura 10). Se esse comando não for executado, toda vez que o drone for ligado a rotina de calibração dos ESC's será executada primeiro.
+Tudo executado corretamente basta realizar o comando para sair da calibração (Figura 10). Se esse comando não for executado ao fim da calibração, toda vez que o drone for ligado a rotina de calibração dos ESC's será executada primeiro.
 
 | ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_5.jpg)   | 
 |:--:| 
@@ -169,7 +170,8 @@ Tudo executado correntamente basta realizar o comando para sair da calibração 
 
 Quando habilitada a rotina de Altitude Hold possibilita com o que o quadricoptero permanace em uma altitude fixa usando como referência a pressão barométrica. Ao mover o stick de throttle essa referência de altitude é atualizada até que o stick retorne a posição central. 
 
-Para mais informações da implementação visite: https://www.youtube.com/watch?v=2BLb6qUKikI&t=702s
+Para mais informações da implementação visite: 
+- https://www.youtube.com/watch?v=2BLb6qUKikI&t=702s
 
 | ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4580_11.jpg)   | 
 |:--:| 
@@ -207,10 +209,10 @@ IMPORTANTE: manter a flag PRINTF_ENABLE 0 quando for voar com o quadricoptero.
 10. ISR(PCINT0_vect): Essa rotina não é executada no Loop, mas é muito importante pois é responsável pela leitura dos sinais PPM (Pulse Position Modulation) do rádio controle. A vantagem em utilizar o modo PPM é a redução da quantidade de fios necessários para aquisitar os pulsos de cada canal. Alguns rádios possuem apenas a opção de PWM, assim, cada canal fornece de forma independente um pulso com largura de 1000-2000us (4º link). O rádio utilizado no projeto é o FlySky FS-I6X, com 6 canais por padrão mas pode ser atualizado para trabalhar com 10 canais juntamente com um recepetor para 10 canais. No modo PPM é possível utilizar 8 canais com o receptor original.
 
 Para mais informações visite: 
-https://www.youtube.com/watch?v=lxE4K7ghST0&list=PLDnffNsiQx6PM4rRNhtB-s_rc2s0CCEmk
-https://www.youtube.com/watch?v=63JmO4Mc8NM
-https://www.youtube.com/watch?v=IsxJD7lS0Go
-http://electronoobs.com/eng_robotica_tut9_1.php
+- https://www.youtube.com/watch?v=lxE4K7ghST0&list=PLDnffNsiQx6PM4rRNhtB-s_rc2s0CCEmk
+- https://www.youtube.com/watch?v=63JmO4Mc8NM
+- https://www.youtube.com/watch?v=IsxJD7lS0Go
+- http://electronoobs.com/eng_robotica_tut9_1.php
 
 # Montagem (The build)
 Para mais detalhes da montagem acesse a pasta de [Imagens](https://github.com/ribeirorobert/quadx-mega/tree/main/Images) no repositório.
@@ -223,4 +225,5 @@ Para mais detalhes da montagem acesse a pasta de [Imagens](https://github.com/ri
 
 # Referências (References)
 [1] Brokking.net. Link: http://www.brokking.net/
+
 [2] Youtube Joop Brokking. Link: https://www.youtube.com/@Joop_Brokking
