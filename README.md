@@ -208,6 +208,8 @@ IMPORTANTE: manter a flag PRINTF_ENABLE 0 quando for voar com o quadricoptero.
 
 10. ISR(PCINT0_vect): Essa rotina não é executada no Loop, mas é muito importante pois é responsável pela leitura dos sinais PPM (Pulse Position Modulation) do rádio controle. A vantagem em utilizar o modo PPM é a redução da quantidade de fios necessários para aquisitar os pulsos de cada canal. Alguns rádios possuem apenas a opção de PWM, assim, cada canal fornece de forma independente um pulso com largura de 1000-2000us (4º link). O rádio utilizado no projeto é o FlySky FS-I6X, com 6 canais por padrão mas pode ser atualizado para trabalhar com 10 canais juntamente com um recepetor para 10 canais. No modo PPM é possível utilizar 8 canais com o receptor original.
 
+Este vídeo mostra o passo a passo da calibração da IMU e acionamento dos motores:  
+
 Para mais informações visite: 
 - https://www.youtube.com/watch?v=lxE4K7ghST0&list=PLDnffNsiQx6PM4rRNhtB-s_rc2s0CCEmk
 - https://www.youtube.com/watch?v=63JmO4Mc8NM
@@ -215,9 +217,28 @@ Para mais informações visite:
 - http://electronoobs.com/eng_robotica_tut9_1.php
 
 # Montagem (The build)
-Para mais detalhes da montagem acesse a pasta de [Imagens](https://github.com/ribeirorobert/quadx-mega/tree/main/Images) no repositório.
+A Figura 13 mostra em detalhes o sentido de giro de cada motor.
+* Motor 1: frontal direito
+* Motor 2: traseiro direito
+* Motor 3: traseiro esquerdo
+* Motor 4: frontal esquerdo
+
+| ![image](https://github.com/ribeirorobert/quadx-mega/blob/main/Images/IMG_4567.jpg)   | 
+|:--:| 
+| **Fig. 13** *Acionar os LEDs do frame* |
+
+Os motores 1 e 3 rodam no sentido antihorário e os motores 2 e 4 por consequência no sentido horário. Se ao acionar os motores algum esteja girando no sentido contrário, basta trocar dois fios conectados ao ESC do respectivo motor para modificar o sentido de giro. IMPORTANTE: sempre teste o sentido de giro dos motores antes de conectar as hélices. 
+
+A Figura 14 mostra com detalhes o bordo de ataque, o dorso, bordo de fuga e face de uma hélice. 
+
+| ![image](https://2.bp.blogspot.com/-DkRnrrZKLuk/VAdgz7S-wuI/AAAAAAAAEzc/gwY7ctg186w/s1600/Capturar1.PNG)   | 
+|:--:| 
+| **Fig. 14** *Acionar os LEDs do frame [3](https://formacaopiloto.blogspot.com/2014/09/aeronaves-e-motores-capitulo-xiv-helices.html)* |
+
+Assim, o bordo de ataque da hélice deve girar no mesmo sentido que as setas em vermelho da Figura 13. Para mais detalhes da montagem acesse a pasta de [Imagens](https://github.com/ribeirorobert/quadx-mega/tree/main/Images) no repositório.
 
 # Trabalhos Futuros (Future Works)
+Algumas implementações ainda estão em backlog, em breve serão disponibilizados rotinas tais como:
 * Altitude Hold
 * GPS Hold and Route Track
 * Back-to-Home
@@ -227,3 +248,5 @@ Para mais detalhes da montagem acesse a pasta de [Imagens](https://github.com/ri
 [1] Brokking.net. Link: http://www.brokking.net/
 
 [2] Youtube Joop Brokking. Link: https://www.youtube.com/@Joop_Brokking
+
+[3] Capítulo XIV: Hélices. Formação de Piloto. Link: https://formacaopiloto.blogspot.com/2014/09/aeronaves-e-motores-capitulo-xiv-helices.html
