@@ -208,7 +208,7 @@ IMPORTANTE: manter a flag PRINTF_ENABLE 0 quando for voar com o quadricoptero.
 
 10. ISR(PCINT0_vect): Essa rotina não é executada no Loop, mas é muito importante pois é responsável pela leitura dos sinais PPM (Pulse Position Modulation) do rádio controle. A vantagem em utilizar o modo PPM é a redução da quantidade de fios necessários para aquisitar os pulsos de cada canal. Alguns rádios possuem apenas a opção de PWM, assim, cada canal fornece de forma independente um pulso com largura de 1000-2000us (4º link). O rádio utilizado no projeto é o FlySky FS-I6X, com 6 canais por padrão mas pode ser atualizado para trabalhar com 10 canais juntamente com um recepetor para 10 canais. No modo PPM é possível utilizar 8 canais com o receptor original.
 
-Este vídeo mostra o passo a passo da calibração da IMU e acionamento dos motores:  
+Este vídeo mostra o passo a passo da calibração da IMU e acionamento dos motores: https://drive.google.com/file/d/1GBvPZ2bElnIvH8ivOGOF917iYf-E5jJ1/view?usp=sharing
 
 Para mais informações visite: 
 - https://www.youtube.com/watch?v=lxE4K7ghST0&list=PLDnffNsiQx6PM4rRNhtB-s_rc2s0CCEmk
