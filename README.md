@@ -1,5 +1,5 @@
 # Quadx-Mega: Quadricoptero com Arduino (Quadcopter with Arduino)
-QuadX-Mega é um quadricoptero desenvolvido com um microcontrolador Arduino Mega Pro mini. O objetivo desse repositório é apresentar de forma simples e direta o hardware e software necessários para a construção de um drone caseiro. A descrição desse projeto tem como base o trabalho de Joop Brokking e totalmente sem fins lucrativos.
+QuadX-Mega é um quadricoptero desenvolvido com um microcontrolador Arduino Mega Pro mini. O objetivo desse repositório é apresentar de forma simples o hardware e software necessários para a construção de um drone caseiro. A descrição desse projeto tem como base o trabalho de Joop Brokking e totalmente sem fins lucrativos.
 
 Esse projeto destinado a pessoas que gostam de programação, eletrônica, drones, hobbistas e entusiasta de aeromodelos e aviação. Em caso de dúvidas podem entrar em contato direto pelo GitHub ou através do e-mail: robertribeiro100@gmail.com. 
 
