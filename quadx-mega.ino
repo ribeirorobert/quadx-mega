@@ -1019,51 +1019,99 @@ void waiting_knob_release(void) {
   execute PID controllers
 /*******************************************************/
 void execute_pid_controllers(void) {
-  //ROLL PID
-  rollSetPoint = ((channel[1] - (float)STICK_MIDPOINT) / 3.0) - rollLevelAdjust;
+  /*ROLL PID*/
+
+  /*reference*/
+  rollSetPoint = (((channel[1] - (float)STICK_MIDPOINT) - rollLevelAdjust) / 3.0);
+
+  /*dead band*/
   rollSetPoint = apply_dead_band(rollSetPoint, 15);
 
+  /*error*/
   errorRoll = gyroRollInput - rollSetPoint;
-  pTermRoll =  KP_ROLL * errorRoll;
-  iTermRoll += KI_ROLL * (errorRoll + errorRollAnt) * 0.5;
-  dTermRoll =  KD_ROLL * (errorRoll - errorRollAnt);
 
+  /*proportional term*/
+  pTermRoll =  KP_ROLL * errorRoll;
+
+  /*integral term*/
+  iTermRoll += KI_ROLL * (errorRoll + errorRollAnt) * 0.5;
+
+  /*anti-windup*/
   iTermRoll = constrain(iTermRoll, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
 
+  /*derivative term*/
+  dTermRoll =  KD_ROLL * (errorRoll - errorRollAnt);
+
+  /*output*/
   pidRoll = pTermRoll + iTermRoll + dTermRoll;
+
+  /*output saturation*/
   pidRoll = constrain(pidRoll, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
 
+  /*update previous variables*/
   errorRollAnt = errorRoll;
 
-  //PITCH PID
-  pitchSetPoint = ((channel[2] - (float)STICK_MIDPOINT) / 3.0) - pitchLevelAdjust;
+
+  /*PITCH PID*/
+
+  /*reference*/
+  pitchSetPoint = (((channel[2] - (float)STICK_MIDPOINT) - pitchLevelAdjust) / 3.0);
+
+  /*dead band*/
   pitchSetPoint = apply_dead_band(pitchSetPoint, 15);  
 
+  /*error*/
   errorPitch = gyroPitchInput - pitchSetPoint;
-  pTermPitch =  KP_PITCH * errorPitch;
-  iTermPitch += KI_PITCH * (errorPitch + errorPitchAnt) * 0.5;
-  dTermPitch =  KD_PITCH * (errorPitch - errorPitchAnt);
 
+  /*proportional term*/
+  pTermPitch =  KP_PITCH * errorPitch;
+
+  /*integral term*/
+  iTermPitch += KI_PITCH * (errorPitch + errorPitchAnt) * 0.5;
+
+  /*anti-windup*/
   iTermPitch = constrain(iTermPitch, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
 
+  /*derivative term*/
+  dTermPitch =  KD_PITCH * (errorPitch - errorPitchAnt);
+
+  /*output*/
   pidPitch = pTermPitch + iTermPitch + dTermPitch;
+
+  /*output saturantion*/
   pidPitch = constrain(pidPitch, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
 
+  /*update previous varibles*/
   errorPitchAnt = errorPitch;
 
-  //YAW PID
+
+  /*YAW PID*/
+
+  /*reference*/
   (channel[3] > 1100) ? yawSetPoint = ((channel[4] - (float)STICK_MIDPOINT) / 3.0) : yawSetPoint = 0;
+
+  /*dead band*/
   yawSetPoint = apply_dead_band(yawSetPoint, 20); 
 
+  /*error*/
   errorYaw = gyroYawInput - yawSetPoint;
+
+  /*proportional term*/
   pTermYaw =  KP_YAW * errorYaw;
+
+  /*integral term*/
   iTermYaw += KI_YAW * (errorYaw + errorYawAnt) * 0.5;
 
+  /*anti-windup*/
   iTermYaw = constrain(iTermYaw, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
 
+  /*output*/
   pidYaw = pTermYaw + iTermYaw;
+
+  /*output saturation*/
   pidYaw = constrain(pidYaw, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
 
+  /*update previous variables*/
   errorYawAnt = errorYaw;
 }
 
