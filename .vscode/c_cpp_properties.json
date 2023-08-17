@@ -20,6 +20,8 @@
                 "C:\\Users\\rober\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\variants\\mega",
                 "C:\\Users\\rober\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\libraries\\EEPROM\\src",
                 "C:\\Users\\rober\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\libraries\\Wire\\src",
+                "C:\\Users\\rober\\OneDrive\\Documentos\\Arduino\\libraries\\VL53L1X",
+                "C:\\Users\\rober\\OneDrive\\Documentos\\Arduino\\libraries\\Servo-master\\src",
                 "c:\\users\\rober\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include",
                 "c:\\users\\rober\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include-fixed",
                 "c:\\users\\rober\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\avr\\include"

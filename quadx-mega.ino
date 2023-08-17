@@ -1,96 +1,179 @@
 /*    
-  QuadX Mega - v1.0.
+  RobCopter v1.0 Firmware
   Created by Robert R. Gomes, May 17, 2023. 
   All rights reserved.
 */
 
+/*libraries used*/
+#include <Arduino.h>
 #include <EEPROM.h>
 #include <Wire.h>
 
+#include "VL53L1X.h"
+#include "Servo.h"
+
+/*uncomment which type of multicopter will be used*/
+#define QUAD_X
+//#define TRICOPTER
+
+/*uncomment which battery cell number will be used*/
+//#define BATT_2_CELLS
+#define BATT_3_CELLS
+//#define BATT_4_CELLS
+
+/*uncomment which sensors will be used*/
+#define VL53L1x                 /*optical distance sensor*/
+//#define BMP180                  /*barometric pressure sensor*/
+//#define MS561101BA              /*barometric pressure sensor*/
+
+///#define LONG_RANGE 
+#define SHORT_RANGE 
+//#define HIGH_ACCURACY 
+//#define HIGH_SPEED
+
+/*uncomment which rate loop will be used*/
+//#define RATE_LOOP_250HZ
+#define RATE_LOOP_500HZ
+
+#define HARD_SOFT_PWM       0   /*1 - if dont use Servo.h library to run motors, 0 - otherwise*/
+
+/*communication settings, do not change*/
 #define SERIAL_BAUD_RATE    38400UL
 #define I2C_CLOCK_SPEED     400000UL
 #define I2C_TIMEOUT         4000UL
 
-#define serialXBEE          Serial1   
+#define serialTelemetry     Serial1   
 
-#define TELEMETRY_ENABLE    0
-#define SERIAL_ENABLE       0
-#define PRINTF_ENABLE       0
-#define BMP180_ENABLE       0
-#define MS5611_ENABLE       1
-#define FAIL_SAFE           0
+#define TELEMETRY_ENABLE    0   /*enable to use telemetry, not implemented yet*/
+#define MPU6050_ENABLE      1   /*enable if you have the sensor on your board, disable GY87_ENABLE*/
+#define SERIAL_ENABLE       1   /*enable serial communication*/
+#define PRINTF_ENABLE       1   /*enable printf function*/
+#define BMP180_ENABLE       0   /*enable if you have the sensor on your board*/
+#define MS5611_ENABLE       0   /*enable if you have the sensor on your board*/
+#define GY87_ENABLE         0   /*enable if you have the sensor on your board, disable MPU6050_ENABLE*/ 
+                                /*GY-87 / HW-290 10DOF Accelerometer, Gyroscope, Magnetometer and Barometer Sensor*/
 
-#define DEBUG_STATUS        0
-#define DEBUG_EEPROM        0
-#define DEBUG_MPU           0
-#define DEBUG_ESC           0
+/*flight modes*/
+#define ALT_HOLD_MODE       0   /*enable altitude hold mode*/
+#define HOVER_MODE          1   /*enable hover mode*/
 
-//#define BMP180
-#define MS561101BA
+#define FAIL_SAFE           0   /*enable fail safe functions, not implemented yet*/
 
+#define DEBUG_STATUS        0   /*enable to see copter initialize status logs*/
+#define DEBUG_EEPROM        0   /*enable to debug EEPROM*/
+#define DEBUG_IMU           0   /*enable to debug IMU*/
+#define DEBUG_ESC           0   /*enable to debug ESCs calibration*/
+
+/*sensors I2C addresses, do not change*/
 #define MPU6050_ADDRESS     0x68
 #define COMPASS_ADDRESS     0x1E
+#define VL53L1X_ADDRESS     0x29
 #define BMP180_ADDRESS      0x77
 #define MS5611_ADDRESS      0x77
 #define GYRO_ADDRESS        0x69
 #define ACC_ADDRESS         0x53
 
+/*frame LEDs pins, use the schematic no see another pins*/
 #define LED_FRONT_LEFT      5
 #define LED_FRONT_RIGHT     62
 #define LED_REAR_LEFT       11
 #define LED_REAR_RIGHT      48
 #define VIRTUAL_GND         63
 
+/*board LEDs pins, use the schematic no see another pins*/
 #define LED_YELLOW_PIN      42
 #define LED_GREEN_PIN       40
 #define LED_BLUE_PIN        44
 #define LED_RED_PIN         38
 #define BUZZER_PIN          23
 
+/*voltage measurement pin and 7seg display pins*/
 #define BATTERY_PIN         A0
 #define CLOCK_PIN           A14
 #define LATCH_PIN           A10
 #define DATA_PIN            A12 
 
+/*time constants, change carefully if needed*/
 #define WAITING_SAFETY_PERIOD       120000UL
 #define CHANNEL_READ_PERIOD         100000UL
 #define READ_BATTERY_PERIOD         2000000UL
-#define IGNORE_CMDS_PERIOD          1000000UL
 #define PWM_SAFETY_PERIOD           2100UL
+#define HOVER_CTRL_PERIOD           35000UL
 #define TELEMETRY_PERIOD            1000000UL
 #define BLINK_LED_PERIOD            1000000UL
-#define CTRL_LOOP_PERIOD            4000UL
 #define DISP_7SEG_PERIOD            4000UL
 #define BUZZER_PERIOD               1000000UL
 #define LEDS_PERIOD                 500000UL
 
+#if defined(RATE_LOOP_250HZ)
+#define CTRL_LOOP_PERIOD            4000UL
+#else
+#define CTRL_LOOP_PERIOD            2000UL
+#endif
+
 #define MAX_RUNNING_TIME            900000UL
 
-#define SENSITIVITY_SCALE_FACTOR    0.015267F //0.015267 = 1/65.5 [º/s]
-#define BATTERY_UPPER_THRESHOLD     10.7F
-#define BATTERY_LOWER_THRESHOLD     6.0F
-#define BATTERY_COMPENSATION        0.000571F //1/3500
-#define LEVEL_ADJUST_FACTOR         15.0F
-#define DEGREES_TO_RADIAN           0.000001066F //0.000001066 = 0.0000611*(PI/180)
-#define RADIAN_TO_DEGREES           57.295779F //57.295779 = 180/PI
-#define ZERO_RATE_OUTPUT            0.0000611F //0.0000611 = 1/(250Hz/65.5) [º]
-#define VOLTAGE_FACTOR              0.015285F //R2/R1+R2 = K = 0.319727, (5.0/1023) / K = 0.015285
-#define HALF_LOOP_RATE              0.002F //sample time / 2
 
-#define FAILSAFE_THRESHOLD          990
-#define AUTO_LEVEL_MODE             1
+/*general constants, change carefully if needed*/
+#define SENSITIVITY_SCALE_FACTOR    0.015267F     /*0.015267 = 1/65.5 [º/s]*/
 
-#define QUADX_STATUS_UNDEFINED      0b00000000  
-#define QUADX_RADIO_STARTUP_FAIL    0b00000001
-#define QUADX_ESC_NOT_CALIBRATED    0b00000010
-#define QUADX_EEPROM_READ_FAIL      0b00000100 
-#define QUADX_GYRO_CALIBRATED       0b00001000
-#define QUADX_ACC_CALIBRATED        0b00010000
-#define QUADX_MPU6050_ERROR         0b00100000
-#define QUADX_BMP180_ERROR          0b01000000
-#define QUADX_MS5611_ERROR          0b01000000
-#define QUADX_STATUS_OK             0b10000000
+#if defined(QUAD_X)
+#define NUMBER_MOTORS     4
+#elif defined(TRICOPTER)
+#define NUMBER_MOTORS     3
+#else
+#define NUMBER_MOTORS     6
+#endif
 
+#if defined(BATT_2_CELLS)
+#define BATTERY_UPPER_THRESHOLD     7.0F          /*max. battery voltage discharge*/
+#define BATTERY_LOWER_THRESHOLD     6.0F          /*min. battery voltage*/
+#define BATTERY_COMPENSATION        0.000222F     /*1/4500*/
+#define BATTERY_LOWER_TRIGGER       6.0F          /*lower voltage to compensation*/
+#define BATTERY_UPPER_TRIGGER       8.2F          /*upper voltage to compensation*/
+#elif defined(BATT_3_CELLS)
+#define BATTERY_UPPER_THRESHOLD     10.5F         /*max. battery voltage discharge*/
+#define BATTERY_LOWER_THRESHOLD     6.0F          /*min. battery voltage*/
+#define BATTERY_COMPENSATION        0.000571F     /*1/3500*/
+#define BATTERY_LOWER_TRIGGER       8.0F          /*lower voltage to compensation*/
+#define BATTERY_UPPER_TRIGGER       12.4F         /*upper voltage to compensation*/
+#elif defined(BATT_4_CELLS)
+#define BATTERY_UPPER_THRESHOLD     10.7F         /*max. battery voltage discharge*/
+#define BATTERY_LOWER_THRESHOLD     6.0F          /*min. battery voltage*/
+#define BATTERY_COMPENSATION        0.000571F     /*1/3500*/
+#define BATTERY_LOWER_TRIGGER       10.0F         /*lower voltage to compensation*/
+#define BATTERY_UPPER_TRIGGER       16.5F         /*upper voltage to compensation*/
+#endif
+
+#define LEVEL_ADJUST_FACTOR         13.0F         /*level adjust -> (stick travel-dead band)/angle setting = (500 - 10)/13 ~ 37°*/
+#define DEGREES_TO_RADIAN           0.000001066F  /*0.000001066 = 0.0000611*(PI/180)*/
+#define RADIAN_TO_DEGREES           57.295779F    /*57.295779 = 180/PI*/
+
+#if defined(RATE_LOOP_250HZ)
+#define ZERO_RATE_OUTPUT            0.0000610687F /*1/(250Hz/65.5) [°]*/
+#else
+#define ZERO_RATE_OUTPUT            0.0000305343F /*1/(500Hz/65.5) [°]*/
+#endif
+
+#define VOLTAGE_FACTOR              0.015285F     /*R2/R1+R2 = K = 0.319727, (5.0/1023) / K = 0.015285*/
+#define HALF_LOOP_RATE              0.002F        /*sample time/2.0*/
+
+#define FAILSAFE_THRESHOLD          990           /*pulse width to detect radio fail safe, not implemented yet*/
+#define AUTO_LEVEL_MODE             1             /*enable auto level*/
+
+/*copter status*/
+#define COPTER_STATUS_UNDEFINED      0b00000000  
+#define COPTER_RADIO_STARTUP_FAIL    0b00000001
+#define COPTER_ESC_NOT_CALIBRATED    0b00000010
+#define COPTER_EEPROM_READ_FAIL      0b00000100 
+#define COPTER_GYRO_CALIBRATED       0b00001000
+#define COPTER_ACC_CALIBRATED        0b00010000
+#define COPTER_MPU6050_ERROR         0b00100000
+#define COPTER_BMP180_ERROR          0b01000000
+#define COPTER_MS5611_ERROR          0b01000000
+#define COPTER_STATUS_OK             0b10000000
+
+/*BMP180 registers*/
 #if defined(BMP180)
 #define BMP180_READ_TEMPERATURE     0x2E
 #define BMP180_TEMPERATURE_DATA     0xF6
@@ -104,6 +187,7 @@
 #define BMP180_WAIT_UP_READ         21000UL
 #endif
 
+/*MS561101BA registers*/
 #if defined(MS561101BA)
 #define MS5611_TEMPERATURE_ADDR     0x50
 #define MS5611_PRESSURE_ADDR        0x40
@@ -113,6 +197,7 @@
 #define MS5611_WAIT_UT_UP_READ      10000UL
 #endif
 
+/*EEPROM addresses*/
 #define GYROX_OFFSET_EEPROM_ADDR    0x00
 #define GYROY_OFFSET_EEPROM_ADDR    0x04
 #define GYROZ_OFFSET_EEPROM_ADDR    0x08
@@ -121,6 +206,7 @@
 #define ACCZ_OFFSET_EEPROM_ADDR     0x14
 #define ESC_CAL_EEPROM_ADDR         0xFF
 
+/*moving average indexes*/
 #define TEMPERATURE_INDEX     5U
 #define PARACHUTE_INDEX       30U
 #define ALT_ERROR_INDEX       10U
@@ -133,22 +219,30 @@
 #define ACCZ_LONG_INDEX       50U
 #define ACCZ_THRESHOLD        800UL
 
+/*radio pulses width*/
+#define STICK_INIT_VAL    1300UL
 #define STICK_MIDPOINT    1500UL
-#define STICK_UPPER_DB    1510.0F
-#define STICK_LOWER_DB    1490.0F
+#define STICK_UPPER_DB    1510UL
+#define STICK_LOWER_DB    1490UL
 #define MIN_THROTTLE      1000UL
 #define MAX_THROTTLE      1800UL
+#define MIN_THROTTLE      1000UL
 #define LOCK_SPEED        1000UL   
 #define IDLE_SPEED        1200UL 
 #define FULL_SPEED        2000UL  
+#define HOVER_FACTOR      1300UL
 
+/*motors status*/
 #define LOCK_THROTTLE     0x00
 #define IDLE_THROTTLE     0x01
 #define FULL_THROTTLE     0x02
 
+/*general constants*/
 #define MAX_PID_OUTPUT    400.0F
 #define MAX_STICK_REF     150.0F
 
+
+/*LEDs status*/
 #define ALL_LEDS_OFF  0b00000000
 #define ALL_LEDS_ON   0b00000001
 #define LED_YELLOW    0b00000010
@@ -158,31 +252,52 @@
 #define LED_FRONT     0b00100000
 #define LED_REAR      0b01000000
 
-// #define KP_ALT_HOLD   1.4
-// #define KI_ALT_HOLD   0.2
-// #define KD_ALT_HOLD   0.75
+/*PID controllers gains*/
+#define NUMBER_CTRL   5
 
-#define KP_ALT_HOLD   2.0
-#define KI_ALT_HOLD   0.4
-#define KD_ALT_HOLD   0.75
+#define KP_ALT_HOLD   2.0F
+#define KI_ALT_HOLD   0.4F
+#define KD_ALT_HOLD   0.75F
 
-#define KP_PITCH      1.2
-#define KI_PITCH      0.04
-#define KD_PITCH      20.0
+#if defined(RATE_LOOP_250HZ)
+#define KP_PITCH      1.2F
+#define KI_PITCH      0.04F
+#define KD_PITCH      20.0F
 
-#define KP_ROLL       1.2
-#define KI_ROLL       0.04
-#define KD_ROLL       20.0
+#define KP_ROLL       1.2F
+#define KI_ROLL       0.04F
+#define KD_ROLL       20.0F
 
-#define KP_YAW        4.0
-#define KI_YAW        0.02
+#define KP_YAW        4.0F
+#define KI_YAW        0.02F
+#define KD_YAW        0.0F
+#elif defined(RATE_LOOP_500HZ)
+#define KP_PITCH      1.1F
+#define KI_PITCH      0.02F
+#define KD_PITCH      14.0F
 
+#define KP_ROLL       1.1F
+#define KI_ROLL       0.02F
+#define KD_ROLL       14.0F
+
+#define KP_YAW        4.0F
+#define KI_YAW        0.02F
+#define KD_YAW        0.0F
+
+#define KP_HOVER      0.12F
+#define KI_HOVER      0.01F
+#define KD_HOVER      1.30F //1.83
+#endif
+
+/*structures*/
 struct {
+  uint8_t pageIndex = 1;
   uint8_t status;
   uint8_t motors;
   uint8_t leds;
   bool buzzer;
-} quadX;
+  float batteryVoltage;
+} copter;
 
 struct {
   union {int32_t val; uint8_t raw[4];} gyroXOffset;
@@ -201,7 +316,32 @@ struct {
   int32_t accX;
   int32_t accY;
   int32_t accZ;
-} MPU6050;
+} IMU;
+
+struct {
+  float error[NUMBER_CTRL], prev_error[NUMBER_CTRL], sat_error[NUMBER_CTRL];
+  float p_term[NUMBER_CTRL], i_term[NUMBER_CTRL], d_term[NUMBER_CTRL];
+  float output[NUMBER_CTRL], prev_output[NUMBER_CTRL], presat_output[NUMBER_CTRL];
+  float delta[NUMBER_CTRL], prev_delta[NUMBER_CTRL];
+  float prev_feedback[NUMBER_CTRL];
+
+  float kp[NUMBER_CTRL] = {KP_ROLL, KP_PITCH, KP_YAW, KP_HOVER, KP_ALT_HOLD};
+  float ki[NUMBER_CTRL] = {KI_ROLL, KI_PITCH, KI_YAW, KI_HOVER, KI_ALT_HOLD};
+  float kd[NUMBER_CTRL] = {KD_ROLL, KD_PITCH, KD_YAW, KD_HOVER, KD_ALT_HOLD};
+  float ku[NUMBER_CTRL] = {0.8, 0.8, 0.8, 0.8, 0.5};
+  const float sample_time = 1.0;
+  const float gain_factor = 1.0;
+  const float tau = 0.001;
+
+  int16_t lim_max_error[NUMBER_CTRL] = { 100,  100,  100,  150,  100};
+  int16_t lim_min_error[NUMBER_CTRL] = {-100, -100, -100, -150, -100};
+
+  const int16_t lim_max_integr =  300;
+  const int16_t lim_min_integr = -300;
+
+  const int16_t lim_max_output[NUMBER_CTRL] = { 400,  400,  400,  400,  400};
+  const int16_t lim_min_output[NUMBER_CTRL] = {-400, -400, -400, -400, -400};
+} PID;
 
 #if defined(BMP180)
 struct {
@@ -257,6 +397,7 @@ struct {
 } MS5611;
 #endif
 
+/*general arrays*/
 const uint8_t numbers[10] = {
   0b00000011, 0b10011111, 0b00100101, 0b00001101, 0b10011001, 
   0b01001001, 0b01000001, 0b00011111, 0b00000001, 0b00001001
@@ -300,31 +441,35 @@ const uint8_t esc[7] = {
 
 uint8_t msg[6*sizeof(fail)+sizeof(eeprom)+sizeof(mpu)+sizeof(bmp)+sizeof(ms)+sizeof(radio)+sizeof(esc)];
 
+/*status variables*/
 bool statusCalibrationEsc = false;
 bool statusManualAltitude = false;
 bool statusAltitudeHold = false;
 
 uint8_t counterFailSafe = 0;
-uint8_t debugPageIndex = 1;
 uint8_t muxIndex = 0;
 
 volatile uint16_t channel[9];
 
-uint16_t currentThrottle, initialThrottle;
+/*throttle variables*/
+uint16_t mainThrottle, initialThrottle, hoverThrottle;
 float adjustThrottle;
 float manualThrottle;
 
-float batteryVoltage;
+/*motors*/
+int16_t motor[8]; /*six motor + two servo*/
+/*using Servo.h library to run motors*/
+Servo pwm_motor[8]; /*six motor + two servo*/
 
-//roll, pitch and yaw variables
+/*roll, pitch and yaw variables*/
 float gyroRollInput, gyroPitchInput, gyroYawInput;
 float rollAngle, pitchAngle;
 
 float rollLevelAdjust, pitchLevelAdjust;
 float rollAngleAcc, pitchAngleAcc;
 
-//roll, pitch and yaw ctrl variables
-float rollSetPoint, pitchSetPoint, yawSetPoint;
+/*roll, pitch and yaw ctrl variables*/
+float rollSetpoint, pitchSetpoint, yawSetpoint;
 
 float errorRoll, errorPitch, errorYaw;
 float pTermRoll, pTermPitch, pTermYaw;
@@ -334,11 +479,11 @@ float dTermRoll, dTermPitch, dTermYaw;
 float errorRollAnt, errorPitchAnt, errorYawAnt;
 float pidRoll, pidPitch, pidYaw;
 
-//altitude hold ctrl variables
+/*altitude hold ctrl variables*/
 float altHoldSetPoint, errorAltHold, pidAltHold;
 float pTermAltHold, iTermAltHold, dTermAltHold;
 
-//altitude hold variables
+/*altitude hold variables*/
 uint8_t altitudeErrorIndex = 0;
 uint8_t temperatureIndex = 0;
 uint8_t parachuteIndex = 0;
@@ -365,30 +510,44 @@ float actualPressureDiff;
 
 float previousParachutePressure;
 
-//time variables
+/*time variables*/
 unsigned long previousReadVoltagePeriod;
 unsigned long previousIgnoreCmdsPeriod;
 unsigned long previousCtrlLoopPeriod;
 unsigned long previousBuzzerPeriod;
 unsigned long previousBlinkPeriod;
-unsigned long startQuadXTimer;
+unsigned long startCopterTimer;
+
+int16_t tiltMiddle = 1500;
+int16_t tiltOffset = 0;
+
+
+bool statusHover = false;
+float filteredDistance, measure_0;
+float targetDistance = 200;
+uint16_t hoverCounter = 0; 
+
+float hoverFactor = 0;
+float otoNewSet = 0;
+
+VL53L1X sensor;
 
 void setup() {
-  //initialize serial
+  /*initialize serial debug port*/
 #if SERIAL_ENABLE  
   Serial.begin(SERIAL_BAUD_RATE);
-  delay(1000);
 #endif
 
+  /*telemetry serial port*/
 #if TELEMETRY_ENABLE
-  serialXBEE.begin(9600); //Rx, Tx
+  serialTelemetry.begin(9600); //Rx, Tx
 #endif
 
-  //initialize I2C
+  /*initialize I2C communication*/
   Wire.begin();
-  Wire.setClock(I2C_CLOCK_SPEED); //TWBR = 12; set the I2C clock speed to 400kHz
+  Wire.setClock(I2C_CLOCK_SPEED); /*TWBR = 12; set the I2C clock speed to 400kHz*/
 
-  //inputs and outputs
+  /*inputs and outputs*/
   pinMode(BATTERY_PIN, INPUT);
 
   pinMode(LED_FRONT_LEFT,  OUTPUT);
@@ -407,106 +566,163 @@ void setup() {
   pinMode(LATCH_PIN, OUTPUT);
   pinMode(DATA_PIN,  OUTPUT);
 
-  //virtual GND
+  /*virtual GND*/
   digitalWrite(VIRTUAL_GND, LOW);
 
-  DDRE |= bit(DDE5); //data direction register PORTE.5 (ESC1)
-  DDRB |= bit(DDB7); //data direction register PORTB.7 (ESC2)
+#if HARD_SOFT_PWM
+  /*motors PWM pins, chance carefully if needed*/
+  /*functions used -> copter_init() and write_pwm()*/
+  DDRE |= bit(DDE5); /*data direction register PORTE.5 (motor 1)*/
+  DDRB |= bit(DDB7); /*data direction register PORTB.7 (motor 2)*/
 
-  DDRH |= bit(DDH4); //data direction register PORTH.4 (ESC3)
-  DDRH |= bit(DDH6); //data direction register PORTH.6 (ESC4)
+  DDRH |= bit(DDH4); /*data direction register PORTH.4 (motor 3)*/
+  DDRH |= bit(DDH6); /*data direction register PORTH.6 (motor 4)*/
+#if defined(TRICOPTER)
+  DDRB |= bit(DDB3); /*data direction register PORTB.3 (tilt servo)*/
+#endif
+#else
+#if defined(QUAD_X)
+  pwm_motor[0].attach(3,  1000, 2000);
+  pwm_motor[1].attach(13, 1000, 2000);
+  pwm_motor[2].attach(7,  1000, 2000);
+  pwm_motor[3].attach(9,  1000, 2000);
 
-  PCMSK0 |= bit(PCINT2); //want pin B2
-  PCIFR |= bit(PCIF0); //clear any outstanding interrupts
-  PCICR |= bit(PCIE0); //enable pin change interrupts PCMSK0
+  pwm_motor[0].writeMicroseconds(LOCK_SPEED);
+  pwm_motor[1].writeMicroseconds(LOCK_SPEED);
+  pwm_motor[2].writeMicroseconds(LOCK_SPEED);
+  pwm_motor[3].writeMicroseconds(LOCK_SPEED);
+#elif defined(TRICOPTER)
+  pwm_motor[0].attach(3,  1000, 2000);
+  pwm_motor[1].attach(13, 1000, 2000);
+  pwm_motor[2].attach(7,  1000, 2000);
+  pwm_motor[3].attach(50, 1000, 2000);
 
-  //blink LEDs
-  blink_leds();
+  pwm_motor[0].writeMicroseconds(LOCK_SPEED);
+  pwm_motor[1].writeMicroseconds(LOCK_SPEED);
+  pwm_motor[2].writeMicroseconds(LOCK_SPEED);
+  pwm_motor[3].writeMicroseconds(tiltMiddle);
+#endif
+#endif
 
-  //quadX status
-  quadX_status();
+  /*input PPM signal pin*/
+  PCMSK0 |= bit(PCINT2); /*want pin B2*/
+  PCIFR  |= bit(PCIF0);  /*clear any outstanding interrupts*/
+  PCICR  |= bit(PCIE0);  /*enable pin change interrupts PCMSK0*/
 
-  //get battery voltage
-  batteryVoltage = analogRead(BATTERY_PIN) * VOLTAGE_FACTOR;
+  /*blink LEDs*/
+  //blink_leds();
 
-  //update timers
+  /*copter init*/
+  copter_init();
+
+  /*update timers*/
   previousReadVoltagePeriod = micros();
-  previousIgnoreCmdsPeriod = micros();
   previousCtrlLoopPeriod = micros();
   previousBuzzerPeriod = micros();
   previousBlinkPeriod = micros();
-  startQuadXTimer = millis();
+  startCopterTimer = millis();
 }
 
 void loop() {
-  //reading accelerometer and gyroscope angles
-  acc_gyro_values();
+  /*ctrl loop period (4ms=250Hz), do not change*/
+  if (micros() - previousCtrlLoopPeriod >= CTRL_LOOP_PERIOD) { 
+    previousCtrlLoopPeriod = micros();
 
-  //accelerometer and gyroscope euler angles
-  euler_angles();
+    static uint8_t taskOrder = 0;
+    (taskOrder >= 7) ? taskOrder = 0 : taskOrder ++;
 
-  //read commands from radio   
-  read_radio_commands();
-
-  //read pressure and temperature
+    switch (taskOrder) {
+      case 0: { /*hover, not work yet*/
+#if HOVER_MODE
+        hover_mode();
+#endif
+      };
+      break;
+ 
+      case 1: { /*read pressure and temperature, do not change*/
 #if BMP180_ENABLE    
-  BMP180_update();
+        BMP180_update();
+#elif MS5611_ENABLE    
+        MS5611_update();
 #endif  
+      };
+      break;
 
-#if MS5611_ENABLE    
-  //MS5611_update();
+      case 2: { /*altitude hold, not work yet*/
+#if ALT_HOLD_MODE  
+        altitude_hold(3);
 #endif  
+      }
+      break;
 
-  //altitude hold
-#if MS5611_ENABLE  
-  altitude_hold(3);
-#endif  
+      case 3: { /*read battery voltage, change carefully if needed*/
+        read_battery_voltage(); 
+      }
+      break;
 
-  //roll, pitch and yaw PIDs controllers
-  execute_pid_controllers();
+      case 4: { /*check alarms*/
+        check_alarms();
+      }
+      break;
 
-  //read battery voltage
-  read_battery_voltage();
+      case 5: { /*show on display the copter status*/
+        show_display_status();
+      }
+      break;
 
-  //show on display quadX status
-  show_quad_status();
-
-  //check alarms
-  check_alarms();
-
-  //ctrl loop period
-  while (micros() - previousCtrlLoopPeriod < CTRL_LOOP_PERIOD);
-  previousCtrlLoopPeriod = micros();
-
-  //ESCs PWM signals
-  esc_pwm_signals();  
-
-  //print data on serial monitor debugPageIndex
+      case 6: { /*print variables on serial monitor, keep disable when fly, change if needed*/
 #if PRINTF_ENABLE
-  print_info(7);
+        //print_parameters(8); //copter.pageIndex
 #endif
+      }
+      break;
 
-  //telemetry parameters
+      case 7: { /*telemetry data, change if needed*/
 #if TELEMETRY_ENABLE
-  update_telemetry_parameters();
+        update_telemetry_data();
 #endif
+      }
+      break;
+    }
+
+    /*menu: calibrate IMU, calibrate ESCs, start/stop motors, change carefully if needed*/
+    menu_functions();
+
+    /*read IMU data, do not change*/
+    IMU_compute();
+
+    /*accelerometer and gyroscope Euler angles, do not change*/
+    euler_angles();
+
+    /*roll, pitch and yaw PID controllers, change carefully if needed*/
+    run_controllers();
+
+    /*runs motors, change carefully if needed*/
+    run_motors();  
+
+    //print_parameters(8);
+  }
+
+  /*ctrl loop period, do not change*/
+  // while (micros() - previousCtrlLoopPeriod < CTRL_LOOP_PERIOD);
+  // previousCtrlLoopPeriod = micros();
 }
 
 /*******************************************************
-  quadX status
+  copter status
 /*******************************************************/
-void quadX_status(void) {
+void copter_init(void) {
 #if DEBUG_STATUS
-  Serial.println(F("QUADX STARTING..."));
+  Serial.println(F("COPTER STARTING..."));
 #endif
 
-  //quadX default status
-  quadX.status |= QUADX_STATUS_UNDEFINED;
-  quadX.motors = LOCK_THROTTLE;
-  quadX.leds = ALL_LEDS_OFF;
-  quadX.buzzer = false;
+  /*copter default status*/
+  copter.status |= COPTER_STATUS_UNDEFINED;
+  copter.motors = LOCK_THROTTLE;
+  copter.leds = ALL_LEDS_OFF;
+  copter.buzzer = false;
 
-  //read EEPROM data
+  /*read EEPROM data*/
 #if DEBUG_STATUS
   Serial.print(F("->READING EEPROM: "));
 #endif
@@ -515,27 +731,27 @@ void quadX_status(void) {
 #if DEBUG_STATUS
     Serial.println(F("ERROR"));
 #endif
-    quadX.status |= QUADX_EEPROM_READ_FAIL;
+    copter.status |= COPTER_EEPROM_READ_FAIL;
     fail_message();
   } else {
 #if DEBUG_STATUS
     Serial.println(F("OK"));
 #endif
-    quadX.status |= QUADX_GYRO_CALIBRATED;
-    quadX.status |= QUADX_ACC_CALIBRATED;
+    copter.status |= COPTER_GYRO_CALIBRATED;
+    copter.status |= COPTER_ACC_CALIBRATED;
   }
 
-  //ESCs calibration
+  /*ESCs calibration*/
 #if DEBUG_STATUS
   Serial.print(F("->ESC CALIBRATION: "));
 #endif
 
   if (statusCalibrationEsc) {
-    if (!esc_calibration_signals()) {
+    if (!calibrate_escs()) {
 #if DEBUG_STATUS
       Serial.println(F("ERROR"));
 #endif
-      quadX.status |= QUADX_ESC_NOT_CALIBRATED;
+      copter.status |= COPTER_ESC_NOT_CALIBRATED;
     } else {
 #if DEBUG_STATUS
       Serial.println(F("OK"));
@@ -549,9 +765,9 @@ void quadX_status(void) {
 #endif
   }
 
-  //check if MPU6050 is ok
+  /*check if IMU is connected*/
 #if DEBUG_STATUS
-  Serial.print(F("->CHECKING MPU6050: "));
+  Serial.print(F("->CHECKING IMU: "));
 #endif
   
   for (uint8_t i = 0; i < 10; i ++) {
@@ -562,19 +778,19 @@ void quadX_status(void) {
 #if DEBUG_STATUS
       Serial.println(F("ERROR"));
 #endif
-      quadX.status |= QUADX_MPU6050_ERROR;
+      copter.status |= COPTER_MPU6050_ERROR;
     } else {
 #if DEBUG_STATUS
       Serial.println(F("OK"));
 #endif
-      MPU6050_init(); //IMU configuration
-      quadX.status &= ~QUADX_MPU6050_ERROR;
+      IMU_init(); //IMU configuration
+      copter.status &= ~COPTER_MPU6050_ERROR;
       break;
     }
     delay(500);
   }
 
-  //check if BMP180 is ok
+  /*check if BMP180 is connected*/
 #if defined(BMP180)  
 #if DEBUG_STATUS
   Serial.print(F("->CHECKING BMP180: "));
@@ -588,13 +804,13 @@ void quadX_status(void) {
 #if DEBUG_STATUS
       Serial.println(F("ERROR"));
 #endif
-      quadX.status |= QUADX_BMP180_ERROR;
+      copter.status |= COPTER_BMP180_ERROR;
     } else {
 #if DEBUG_STATUS
       Serial.println(F("OK"));
 #endif      
       BMP180_init();
-      quadX.status &= ~QUADX_BMP180_ERROR;
+      copter.status &= ~COPTER_BMP180_ERROR;
       break;
     }
     delay(500);
@@ -609,7 +825,7 @@ void quadX_status(void) {
   actualPressure = 0; 
 #endif
 
-  //check if MS561101BA is ok
+  /*check if MS561101BA is connected*/
 #if defined(MS561101BA)
 #if DEBUG_STATUS
   Serial.print(F("->CHECKING MS561101BA: "));
@@ -623,55 +839,86 @@ void quadX_status(void) {
 #if DEBUG_STATUS
       Serial.println(F("ERROR"));
 #endif
-      quadX.status |= QUADX_MS5611_ERROR;
+      copter.status |= COPTER_MS5611_ERROR;
     } else {
 #if DEBUG_STATUS
       Serial.println(F("OK"));
 #endif      
       MS5611_init();
-      quadX.status &= ~QUADX_MS5611_ERROR;
+      copter.status &= ~COPTER_MS5611_ERROR;
       break;
     }
     delay(500);
   }
-
 #endif
 
-  //wait radio signals 
-// #if DEBUG_STATUS  
-//   Serial.print(F("->WAITING RADIO SIGNALS: "));
-// #endif
+  /*check if VL53L1X is connected*/
+#if defined(VL53L1x) && defined(HOVER_MODE)
+#if DEBUG_STATUS
+  Serial.print(F("->CHECKING VL53L1X: "));
+#endif
 
-//   if (!wait_radio_signals()) {
-// #if DEBUG_STATUS
-//     Serial.println(F("ERROR"));
-// #endif
-//     quadX.status |= QUADX_RADIO_STARTUP_FAIL;
-//     fail_message();
-//   } else {
-// #if DEBUG_STATUS
-//     Serial.println(F("OK"));
-// #endif
-//   }
+  for (uint8_t i = 0; i < 10; i ++) {
+    Wire.beginTransmission(VL53L1X_ADDRESS);
+    uint8_t status = Wire.endTransmission();
 
-  //bip motors
+    if (status != 0) {
+#if DEBUG_STATUS
+      Serial.println(F("ERROR"));
+#endif
+      //copter.status |= COPTER_MS5611_ERROR;
+    } else {
+#if DEBUG_STATUS
+      Serial.println(F("OK"));
+#endif      
+      VL53L1X_init();
+      //copter.status &= ~COPTER_MS5611_ERROR;
+      break;
+    }
+    delay(500);
+  }
+#endif
+
+  /*wait radio signals*/ 
+#if DEBUG_STATUS  
+  Serial.print(F("->WAITING RADIO SIGNALS: "));
+#endif
+
+  if (!wait_radio_start()) {
+#if DEBUG_STATUS
+    Serial.println(F("ERROR"));
+#endif
+    copter.status |= COPTER_RADIO_STARTUP_FAIL;
+    fail_message();
+  } else {
+#if DEBUG_STATUS
+    Serial.println(F("OK"));
+#endif
+  }
+
+  /*bip motors*/
 #if DEBUG_STATUS
   Serial.println(F("->BIP MOTORS"));
 #endif
 
-  for (uint16_t i = 0; i < 500; i ++) {
-    PORTE |= (1 << PORTE5); PORTB |= (1 << PORTB7);
-    PORTH |= (1 << PORTH4); PORTH |= (1 << PORTH6);
+  for (uint16_t i = 0; i < 100; i ++) {
+    PORTE |= (1 << PORTE5); /*motor 1*/
+    PORTB |= (1 << PORTB7); /*motor 2*/
+    PORTH |= (1 << PORTH4); /*motor 3*/
+    PORTH |= (1 << PORTH6); /*motor 4*/
     delayMicroseconds(1000);
 
-    PORTE &= ~(1 << PORTE5); PORTB &= ~(1 << PORTB7);
-    PORTH &= ~(1 << PORTH4); PORTH &= ~(1 << PORTH6);
+    PORTE &= ~(1 << PORTE5); /*motor 1*/
+    PORTB &= ~(1 << PORTB7); /*motor 2*/
+    PORTH &= ~(1 << PORTH4); /*motor 3*/
+    PORTH &= ~(1 << PORTH6); /*motor 4*/
     delayMicroseconds(3000);
 
-    seven_seg(0b11000001, 0b10011111, 0b00110001, 0b11111111);
+    update_display(0b11000001, 0b10011111, 0b00110001, 0b11111111);
   }
 
-  if (quadX.status & QUADX_EEPROM_READ_FAIL) {
+  /*error message, EEPROM*/
+  if (copter.status & COPTER_EEPROM_READ_FAIL) {
     for (uint8_t i = 0; i < sizeof(fail); i ++) 
       msg[i] = fail[i];
     muxIndex += sizeof(fail);
@@ -681,7 +928,8 @@ void quadX_status(void) {
     muxIndex += sizeof(eeprom);
   }
 
-  if (quadX.status & QUADX_MPU6050_ERROR) {
+  /*error message, MPU6050*/
+  if (copter.status & COPTER_MPU6050_ERROR) {
     for (uint8_t i = muxIndex, k = 0; i < muxIndex + sizeof(fail); i ++, k ++) 
       msg[i] = fail[k];
     muxIndex += sizeof(fail);
@@ -692,7 +940,8 @@ void quadX_status(void) {
   }
 
 #if defined(BMP180)
-  if (quadX.status & QUADX_BMP180_ERROR) {
+  /*error message, BMP180*/
+  if (copter.status & COPTER_BMP180_ERROR) {
     for (uint8_t i = muxIndex, k = 0; i < muxIndex + sizeof(fail); i ++, k ++) 
       msg[i] = fail[k];
     muxIndex += sizeof(fail);
@@ -704,7 +953,8 @@ void quadX_status(void) {
 #endif
 
 #if defined(MS561101BA)
-  if (quadX.status & QUADX_MS5611_ERROR) {
+  /*error message, MS561101BA*/
+  if (copter.status & COPTER_MS5611_ERROR) {
     for (uint8_t i = muxIndex, k = 0; i < muxIndex + sizeof(fail); i ++, k ++) 
       msg[i] = fail[k];
     muxIndex += sizeof(fail);
@@ -715,7 +965,8 @@ void quadX_status(void) {
   }
 #endif
 
-  if (quadX.status & QUADX_RADIO_STARTUP_FAIL) {
+  /*error message, radio not start*/
+  if (copter.status & COPTER_RADIO_STARTUP_FAIL) {
     for (uint8_t i = muxIndex, k = 0; i < muxIndex + sizeof(fail); i ++, k ++) 
       msg[i] = fail[k];
     muxIndex += sizeof(fail);
@@ -725,7 +976,8 @@ void quadX_status(void) {
     muxIndex += sizeof(radio);
   }
 
-  if (quadX.status & QUADX_ESC_NOT_CALIBRATED) {
+  /*error message, ESCs calibration*/
+  if (copter.status & COPTER_ESC_NOT_CALIBRATED) {
     for (uint8_t i = muxIndex, k = 0; i < muxIndex + sizeof(fail); i ++, k ++) 
       msg[i] = fail[k];
     muxIndex += sizeof(fail);
@@ -739,107 +991,110 @@ void quadX_status(void) {
 #if DEBUG_STATUS
     Serial.println(F("RESULT: SUCESS"));
 #endif
-    quadX.status |= QUADX_STATUS_OK;
+    copter.status |= COPTER_STATUS_OK;
   } else {
 #if DEBUG_STATUS
     Serial.println(F("RESULT: ERROR"));
 #endif
   }
   
-  quadX.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
+  /*turn off LEDs*/
+  copter.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
+
+  /*read battery voltage*/
+  copter.batteryVoltage = analogRead(BATTERY_PIN) * VOLTAGE_FACTOR;
 }
 
 /*******************************************************
-  MPU6050 configuration
+  IMU configuration
 /*******************************************************/
-void MPU6050_init(void) {
+void IMU_init(void) {
   Wire.beginTransmission(MPU6050_ADDRESS);     
-  Wire.write(0x6B); //PWR_MGMT_1
-  Wire.write(0x00); //DEVICE_RESET; SLEEP; CYCLE; TEMP_DIS; CLKSEL (00000000, all disable)
+  Wire.write(0x6B); /*PWR_MGMT_1*/
+  Wire.write(0x00); /*DEVICE_RESET; SLEEP; CYCLE; TEMP_DIS; CLKSEL (00000000, all disable)*/
   Wire.endTransmission();      
 
   Wire.beginTransmission(MPU6050_ADDRESS);     
-  Wire.write(0x1A); //CONFIG
-  Wire.write(0x03); //EXT_SYNC_SET (000, FSYNC input disable); DLPF_CFG (011, ACC bandwidth = 44Hz and GYRO bandwidth = 42Hz)
+  Wire.write(0x1A); /*CONFIG*/
+  Wire.write(0x03); /*EXT_SYNC_SET (000, FSYNC input disable); DLPF_CFG (011, ACC bandwidth = 44Hz and GYRO bandwidth = 42Hz)*/
   Wire.endTransmission();         
 
   Wire.beginTransmission(MPU6050_ADDRESS);     
-  Wire.write(0x1B); //GYRO_CONFIG
-  Wire.write(0x08); //XG_ST,YG_ST,ZG_ST (000, disable self test); FS_SEL (1, 01, +- 500°/s [65.5 LSB/°/s] full scale range); ---;
+  Wire.write(0x1B); /*GYRO_CONFIG*/
+  Wire.write(0x08); /*XG_ST,YG_ST,ZG_ST (000, disable self test); FS_SEL (1, 01, +- 500°/s [65.5 LSB/°/s] full scale range); ---;*/
   Wire.endTransmission();  
 
   Wire.beginTransmission(MPU6050_ADDRESS);     
-  Wire.write(0x1C); //ACCEL_CONFIG
-  Wire.write(0x10); ///XA_ST,YA_ST,ZA_ST (000, disable self test); AFS_SEL (2, 10, +- 8g [4096 LSB/g] full scale range); ---;
+  Wire.write(0x1C); /*ACCEL_CONFIG*/
+  Wire.write(0x10); /*XA_ST,YA_ST,ZA_ST (000, disable self test); AFS_SEL (2, 10, +- 8g [4096 LSB/g] full scale range); ---;*/
   Wire.endTransmission();                  
 }
 
 /*******************************************************
-  accelerometer and gyroscope values
+  read IMU data (accelerometer, gyroscope, subtract offset)
 /*******************************************************/
-bool acc_gyro_values(void) {
+bool IMU_compute(void) {
   Wire.beginTransmission(MPU6050_ADDRESS);
-  Wire.write(0x3B);                      //start reading register 43h and auto increment with every read
+  Wire.write(0x3B);                      /*start reading register 43h and auto increment with every read*/
   Wire.endTransmission();
-  Wire.requestFrom(MPU6050_ADDRESS, 14); //request 14 bytes from the MPU6050
+  Wire.requestFrom(MPU6050_ADDRESS, 14); /*request 14 bytes from the MPU6050*/
 
-  //reading the low and high bytes of each angle
   if (Wire.available() != 14) return false;
 
-  MPU6050.accX  = (Wire.read() << 8 | Wire.read());      
-  MPU6050.accY  = (Wire.read() << 8 | Wire.read());  
-  MPU6050.accZ  = (Wire.read() << 8 | Wire.read());     
-  MPU6050.temp  = (Wire.read() << 8 | Wire.read());      
-  MPU6050.gyroX = (Wire.read() << 8 | Wire.read()); 
-  MPU6050.gyroY = (Wire.read() << 8 | Wire.read()); 
-  MPU6050.gyroZ = (Wire.read() << 8 | Wire.read()); 
+  IMU.accX  = (Wire.read() << 8 | Wire.read());      
+  IMU.accY  = (Wire.read() << 8 | Wire.read());  
+  IMU.accZ  = (Wire.read() << 8 | Wire.read());     
+  IMU.temp  = (Wire.read() << 8 | Wire.read());      
+  IMU.gyroX = (Wire.read() << 8 | Wire.read()); 
+  IMU.gyroY = (Wire.read() << 8 | Wire.read()); 
+  IMU.gyroZ = (Wire.read() << 8 | Wire.read()); 
 
-  //invert the direction of the axis
-  MPU6050.gyroX *= -1.0;
-  MPU6050.gyroY *=  1.0;
-  MPU6050.gyroZ *= -1.0;
+  /*invert the direction of the axis*/
+  IMU.gyroX *= -1.0;
+  IMU.gyroY *=  1.0;
+  IMU.gyroZ *= -1.0;
 
-  //subtract gyroscope calibration value 
-  MPU6050.gyroX -= MPU6050.gyroXOffset.val;
-  MPU6050.gyroY -= MPU6050.gyroYOffset.val;
-  MPU6050.gyroZ -= MPU6050.gyroZOffset.val;
+  /*subtract gyroscope calibration value*/
+  IMU.gyroX -= IMU.gyroXOffset.val;
+  IMU.gyroY -= IMU.gyroYOffset.val;
+  IMU.gyroZ -= IMU.gyroZOffset.val;
 
-  //subtract accelerometer calibration value
-  MPU6050.accX -= MPU6050.accXOffset.val;
-  MPU6050.accY -= MPU6050.accYOffset.val;
+  /*subtract accelerometer calibration value*/
+  IMU.accX -= IMU.accXOffset.val;
+  IMU.accY -= IMU.accYOffset.val;
 
   return true;
 }
 
 /*******************************************************
-  euler angles
+  Euler angles
 /*******************************************************/
 void euler_angles(void) {
-  //PID gyro angles filtered
-  gyroRollInput  = (gyroRollInput  * 0.7) + (MPU6050.gyroX * SENSITIVITY_SCALE_FACTOR * 0.3);
-  gyroPitchInput = (gyroPitchInput * 0.7) + (MPU6050.gyroY * SENSITIVITY_SCALE_FACTOR * 0.3);
-  gyroYawInput   = (gyroYawInput   * 0.7) + (MPU6050.gyroZ * SENSITIVITY_SCALE_FACTOR * 0.3);
+  /*gyro angles filtered*/
+  gyroRollInput  = (gyroRollInput  * 0.7) + (IMU.gyroX * SENSITIVITY_SCALE_FACTOR * 0.3);
+  gyroPitchInput = (gyroPitchInput * 0.7) + (IMU.gyroY * SENSITIVITY_SCALE_FACTOR * 0.3);
+  gyroYawInput   = (gyroYawInput   * 0.7) + (IMU.gyroZ * SENSITIVITY_SCALE_FACTOR * 0.3);
 
-  //gyro angles calculation
-  rollAngle  += (MPU6050.gyroX * ZERO_RATE_OUTPUT); 
-  pitchAngle += (MPU6050.gyroY * ZERO_RATE_OUTPUT);
+  /*gyro angles calculation*/
+  rollAngle  += (IMU.gyroX * ZERO_RATE_OUTPUT); 
+  pitchAngle += (IMU.gyroY * ZERO_RATE_OUTPUT);
 
-  pitchAngle -= rollAngle  * sin(MPU6050.gyroZ * DEGREES_TO_RADIAN); //if the IMU has yawed transfer the pitch angle to the roll angel
-  rollAngle  += pitchAngle * sin(MPU6050.gyroZ * DEGREES_TO_RADIAN); //if the IMU has yawed transfer the roll angle to the pitch angel
+  pitchAngle -= rollAngle  * sin(IMU.gyroZ * DEGREES_TO_RADIAN); /*if the IMU has yawed transfer the pitch angle to the roll angel*/
+  rollAngle  += pitchAngle * sin(IMU.gyroZ * DEGREES_TO_RADIAN); /*if the IMU has yawed transfer the roll angle to the pitch angel*/
 
-  //accelerometer angles calculations
-  float accTotalVector = sqrt((MPU6050.accX * MPU6050.accX) + (MPU6050.accY * MPU6050.accY) + (MPU6050.accZ * MPU6050.accZ));
-  if (abs(MPU6050.accY) < accTotalVector) {
-    pitchAngleAcc = asin((float)MPU6050.accY / accTotalVector) * RADIAN_TO_DEGREES;
+  /*accelerometer angles calculations*/
+  float accTotalVector = sqrt((IMU.accX * IMU.accX) + (IMU.accY * IMU.accY) + (IMU.accZ * IMU.accZ));
+  if (abs(IMU.accY) < accTotalVector) {
+    pitchAngleAcc = asin((float)IMU.accY / accTotalVector) * RADIAN_TO_DEGREES;
   }
-  if (abs(MPU6050.accX) < accTotalVector) {
-    rollAngleAcc = asin((float)MPU6050.accX / accTotalVector) * RADIAN_TO_DEGREES * (-1); 
+  if (abs(IMU.accX) < accTotalVector) {
+    rollAngleAcc = asin((float)IMU.accX / accTotalVector) * RADIAN_TO_DEGREES * (-1); 
   }
 
-  rollAngle  = (rollAngle  * 0.9996) + (rollAngleAcc  * 0.0004); //correct the drift of the gyro roll angle with the accelerometer roll angle
-  pitchAngle = (pitchAngle * 0.9996) + (pitchAngleAcc * 0.0004); //correct the drift of the gyro pitch angle with the accelerometer pitch angle
+  rollAngle  = (rollAngle  * 0.9996) + (rollAngleAcc  * 0.0004); /*correct the drift of the gyro roll angle with the accelerometer roll angle*/
+  pitchAngle = (pitchAngle * 0.9996) + (pitchAngleAcc * 0.0004); /*correct the drift of the gyro pitch angle with the accelerometer pitch angle*/
 
-  //calculate roll and pitch angle correction
+  /*calculate roll and pitch angles correction*/
 #if AUTO_LEVEL_MODE  
   rollLevelAdjust  = rollAngle  * (float)LEVEL_ADJUST_FACTOR;
   pitchLevelAdjust = pitchAngle * (float)LEVEL_ADJUST_FACTOR;
@@ -852,53 +1107,64 @@ void euler_angles(void) {
 /*******************************************************
   read commands from radio(take off, calibration, ...)
 /*******************************************************/
-bool read_radio_commands(void) {
-  if (micros() - previousIgnoreCmdsPeriod < IGNORE_CMDS_PERIOD) return false;
-  if (quadX.status & QUADX_RADIO_STARTUP_FAIL) return false;
+bool menu_functions(void) {
+  if ((copter.status & COPTER_RADIO_STARTUP_FAIL) || (millis() < 2000)) return false;
 
-  //debug pages control
-  // if (quadX.motors == LOCK_THROTTLE) {
-  //   if (channel[1] > 1900) { //next debug page
+  /*debug control*/
+  // if (copter.motors == LOCK_THROTTLE) {
+  //   if (channel[1] > 1900) { /*next debug page*/
   //     while (channel[1] > 1900) waiting_knob_release();
-  //     debugPageIndex ++;
+  //     copter.pageIndex ++;
   //   }
     
-  //   if (channel[1] < 1100) { //previous debug page
+  //   if (channel[1] < 1100) { /*previous debug page*/
   //     while (channel[1] < 1100) waiting_knob_release();
-  //     debugPageIndex --;
+  //     copter.pageIndex --;
   //   }
 
-  //   debugPageIndex = constrain(debugPageIndex, 1, 7);
+  //   copter.pageIndex = constrain(copter.pageIndex, 1, 8);
   // }
-
-  //altitude hold control
-#if MS5611_ENABLE
-  if (channel[8] > 1600) {
-    statusAltitudeHold = true; 
-  } else {
-    statusAltitudeHold = false; 
-  }
-#endif
   
-  //frame LEDs control
+  /*frame LEDs switch*/
   if (channel[5] > 1600) {
-    quadX.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
+    copter.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
   } else {
-    quadX.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
+    copter.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
   }
 
-  //calibration options
-  if (quadX.motors == LOCK_THROTTLE) {
-    //gyroscope calibration
+  /*flight modes*/
+  if (copter.motors == LOCK_THROTTLE) {
+    /*altitude hold*/
+#if ALT_HOLD_MODE
+    if (channel[8] > 1600) {
+      statusAltitudeHold = true; 
+    } else {
+      statusAltitudeHold = false; 
+    }
+#endif
+
+    /*hover*/
+#if HOVER_MODE
+    if (channel[8] > 1600) {
+      statusHover = true; 
+    } else {
+      statusHover = false; 
+    }
+#endif
+  }
+
+  /*calibration options*/
+  if (copter.motors == LOCK_THROTTLE) {
+    /*gyroscope calibration*/
     if ((channel[1] > 1900) && (channel[2] > 1900)) {
       while ((channel[1] > 1900) && (channel[2] > 1900)) waiting_knob_release();
 
       while (true) {
         if ((channel[1] > 1900) && (channel[2] > 1900)) {
           if (calibrate_gyroscope()) {
-            quadX.status |= QUADX_GYRO_CALIBRATED;
+            copter.status |= COPTER_GYRO_CALIBRATED;
           } else {
-            quadX.status &= ~QUADX_GYRO_CALIBRATED;
+            copter.status &= ~COPTER_GYRO_CALIBRATED;
             fail_message();
           }
           break;
@@ -909,14 +1175,14 @@ bool read_radio_commands(void) {
           break;
         }
 
-        seven_seg(0b01000001, 0b11110111, 0b11110101, 0b11000101);
+        update_display(0b01000001, 0b11110111, 0b11110101, 0b11000101);
       }
 
-      quadX.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
-      quadX.buzzer = true;
+      copter.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
+      copter.buzzer = true;
     }
 
-    //accelerometer calibration
+    /*accelerometer calibration*/
     if ((channel[1] < 1100) && (channel[2] > 1900)) { 
       while ((channel[1] < 1100) && (channel[2] > 1900)) waiting_knob_release();
 
@@ -924,9 +1190,9 @@ bool read_radio_commands(void) {
         if ((channel[1] < 1100) && (channel[2] > 1900)) {
           while ((channel[1] < 1100) && (channel[2] > 1900)) waiting_knob_release();
           if (calibrate_accelerometer()) {
-            quadX.status |= QUADX_ACC_CALIBRATED;
+            copter.status |= COPTER_ACC_CALIBRATED;
           } else {
-            quadX.status &= ~QUADX_ACC_CALIBRATED;
+            copter.status &= ~COPTER_ACC_CALIBRATED;
             fail_message();
           }
           break;
@@ -937,62 +1203,63 @@ bool read_radio_commands(void) {
           break;
         }
 
-        seven_seg(0b00010001, 0b01100011, 0b01100011, 0b11111111);
+        update_display(0b00010001, 0b01100011, 0b01100011, 0b11111111);
       }
 
-      quadX.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
-      quadX.buzzer = true;
+      copter.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
+      copter.buzzer = true;
     }
 
-    //ESCs calibration
+    /*ESCs calibration*/
     if ((channel[1] < 1100) && (channel[2] < 1100)) {
       while ((channel[1] < 1100) && (channel[2] < 1100)) waiting_knob_release();
 
       while (true) {
-        if ((channel[1] < 1100) && (channel[2] < 1100)) { //yes
+        if ((channel[1] < 1100) && (channel[2] < 1100)) { /*confirm operation*/
           while ((channel[1] < 1100) && (channel[2] < 1100)) waiting_knob_release();
 
-          EEPROM.write(ESC_CAL_EEPROM_ADDR, 1);
+          EEPROM.write(ESC_CAL_EEPROM_ADDR, 1); /*save on EEPROM, when reinitialize calibrate_escs() will be executed*/
           break;
         }
 
-        if ((channel[1] > 1900) && (channel[2] < 1100)) { //no
+        if ((channel[1] > 1900) && (channel[2] < 1100)) { /*abort operation*/
           while ((channel[1] > 1900) && (channel[2] < 1100)) waiting_knob_release();
 
-          EEPROM.write(ESC_CAL_EEPROM_ADDR, 0);
+          EEPROM.write(ESC_CAL_EEPROM_ADDR, 0); /*save on EEPROM*/
           break;
         }
 
-        seven_seg(0b01100001, 0b01001001, 0b01100011, 0b11111111);
+        update_display(0b01100001, 0b01001001, 0b01100011, 0b11111111);
       }
 
-      quadX.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
-      quadX.buzzer = true;
+      copter.leds |= LED_YELLOW | LED_FRONT | LED_REAR;
+      copter.buzzer = true;
     }
   }
 
-  //brushless control
-  if ((quadX.status & QUADX_STATUS_OK) && (quadX.status & QUADX_GYRO_CALIBRATED) && 
-      (quadX.status & QUADX_ACC_CALIBRATED)) {
-    //idle brushless motors
-    if ((quadX.motors == LOCK_THROTTLE) && (channel[3] < 1100) && (channel[4] < 1100)) {
+  /*start/stop motors*/
+  if ((copter.status & COPTER_STATUS_OK) && (copter.status & COPTER_GYRO_CALIBRATED) && 
+      (copter.status & COPTER_ACC_CALIBRATED)) {
+    /*idle speed*/
+    if ((copter.motors == LOCK_THROTTLE) && (channel[3] < 1100) && (channel[4] < 1100)) {
       while ((channel[3] < 1100) && (channel[4] < 1100)) waiting_knob_release();
 
-      quadX.motors = IDLE_THROTTLE;
-      quadX.buzzer = true;
+      copter.motors = IDLE_THROTTLE;
+      copter.buzzer = true;
     } 
 
-    //brushless motors running
-    if ((quadX.motors == IDLE_THROTTLE) && (channel[3] < 1100) && (channel[4] < 1100)) {
+    /*full speed*/
+    if ((copter.motors == IDLE_THROTTLE) && (channel[3] < 1100) && (channel[4] < 1100)) {
       while ((channel[3] < 1100) && (channel[4] < 1100)) waiting_knob_release();
 
-      reset_variables();
-      quadX.motors = FULL_THROTTLE;
+      /*reset PID variables*/
+      pid_controller_init();
+      copter.motors = FULL_THROTTLE;
     } 
     
-    //turn off brushless motors
+    /*stop motors*/
     if ((channel[3] < 1100) && (channel[4] > 1900)) {
-      quadX.motors = LOCK_THROTTLE;
+      copter.motors = LOCK_THROTTLE;
     } 
   }
 
@@ -1003,116 +1270,190 @@ bool read_radio_commands(void) {
   waiting knob release
 /*******************************************************/
 void waiting_knob_release(void) {
-  static unsigned long counterWaitingKnob;
-  static bool flagWaitingKnob = false;
+  static unsigned long counterWaitingKnob = millis();
+  static bool flagKnob = false;
 
   if (millis() - counterWaitingKnob >= 200) {
     counterWaitingKnob = millis();
-    flagWaitingKnob = !flagWaitingKnob;
+    flagKnob = !flagKnob;
   }
 
-  if (flagWaitingKnob) seven_seg(0b11111101, 0b11111101, 0b11111101, 0b11111101);
-  else seven_seg(0b11111111, 0b11111111, 0b11111111, 0b11111111);
+  if (flagKnob) update_display(0b11111101, 0b11111101, 0b11111101, 0b11111101);
+  else update_display(0b11111111, 0b11111111, 0b11111111, 0b11111111);
 }
 
 /*******************************************************
-  execute PID controllers
+  run controllers
 /*******************************************************/
-void execute_pid_controllers(void) {
-  /*ROLL PID*/
-
+void run_controllers(void) {
+  /*ROLL*/
   /*reference*/
-  rollSetPoint = (((channel[1] - (float)STICK_MIDPOINT) - rollLevelAdjust) / 3.0);
+  rollSetpoint = (((channel[1] - (float)STICK_MIDPOINT) - rollLevelAdjust) / 3.0);
 
   /*dead band*/
-  rollSetPoint = apply_dead_band(rollSetPoint, 15);
+  rollSetpoint = apply_dead_band(rollSetpoint, 15);
 
+  /*update*/
+  pid_controller_update(0, rollSetpoint, gyroRollInput);
+
+
+  /*PITCH*/
+  /*reference*/
+  pitchSetpoint = (((channel[2] - (float)STICK_MIDPOINT) - pitchLevelAdjust) / 3.0);
+
+  /*dead band*/
+  pitchSetpoint = apply_dead_band(pitchSetpoint, 15);  
+
+  /*update*/
+  pid_controller_update(1, pitchSetpoint, gyroPitchInput);
+
+
+  /*YAW*/
+  /*reference*/
+  (channel[3] > 1100) ? yawSetpoint = ((channel[4] - (float)STICK_MIDPOINT) / 3.0) : yawSetpoint = 0;
+
+  /*dead band*/
+  yawSetpoint = apply_dead_band(yawSetpoint, 20); 
+
+  /*update*/
+  pid_controller_update(2, yawSetpoint, gyroYawInput);
+
+  // PID.kp[0] = (float)(constrain(map(channel[6], 990, 2000, 1, 30), 1, 30) / 10.0);
+  // PID.ki[0] = 0.02;
+  // PID.kd[0] = (float)(constrain(map(channel[7], 990, 2000, 1, 50), 1, 50) / 1.0);
+
+  // PID.kp[1] = PID.kp[0];
+  // PID.ki[1] = PID.ki[0];
+  // PID.kd[1] = PID.kd[0];
+}
+
+/*******************************************************
+  PID controller update
+/*******************************************************/
+void pid_controller_update(uint8_t axis, float reference, float feedback) {
   /*error*/
-  errorRoll = gyroRollInput - rollSetPoint;
+  if (axis == 3) {
+    PID.error[axis] = reference - feedback;
+  } else {
+    PID.error[axis] = feedback - reference; /*inverted*/
+  }
 
-  /*proportional term*/
-  pTermRoll =  KP_ROLL * errorRoll;
+  /*error limit*/
+  PID.error[axis] = constrain(PID.error[axis], PID.lim_min_error[axis], PID.lim_max_error[axis]);
+
+  /*proportial term*/
+  PID.p_term[axis] = PID.kp[axis] * PID.error[axis];
 
   /*integral term*/
-  iTermRoll += KI_ROLL * (errorRoll + errorRollAnt) * 0.5;
+  PID.i_term[axis] = PID.i_term[axis] 
+                  + (PID.ki[axis] * PID.sample_time * (PID.error[axis] + PID.prev_error[axis]) * 0.5) 
+                  + (PID.ku[axis] * PID.sample_time * PID.sat_error[axis]);
 
-  /*anti-windup*/
-  iTermRoll = constrain(iTermRoll, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
+  /*integral saturation*/
+  //PID.i_term[axis] = constrain(PID.i_term[axis], PID.lim_min_integr, PID.lim_max_integr);
+
+  /*reset integral term*/
+  //if (abs(PID.error[axis]) > 2.0) PID.i_term[axis] = 0;
 
   /*derivative term*/
-  dTermRoll =  KD_ROLL * (errorRoll - errorRollAnt);
+  //PID.d_term[axis] = (PID.kd[axis] / PID.gain_factor) * ((PID.error[axis] - PID.prev_error[axis]) / PID.sample_time); //work well with +D not with -D
+
+  // PID.delta[axis] = ((feedback - PID.prev_feedback[axis]) / PID.sample_time); IMU.gyroX
+  // PID.delta[axis] = (0.6 * PID.delta[axis]) + (0.4 * PID.prev_delta[axis]);
+  // PID.d_term[axis] = (PID.kd[axis] / PID.gain_factor) * PID.delta[axis]; //not work yet
+
+  PID.delta[axis] = ((PID.error[axis] - PID.prev_error[axis]) / PID.sample_time);
+  PID.delta[axis] = (0.6 * PID.delta[axis]) + (0.4 * PID.prev_delta[axis]);
+  PID.d_term[axis] = (PID.kd[axis] / PID.gain_factor) * PID.delta[axis]; //work well with +D not with -D
+
+  // PID.d_term[axis] = ((2.0 * PID.kd[axis] * (PID.error[axis] - PID.prev_error[axis]))
+  //                  + ((2.0 * PID.tau - PID.sample_time) * PID.d_term[axis]))
+  //                  /  (2.0 * PID.tau + PID.sample_time); //work well with +D not with -D
 
   /*output*/
-  pidRoll = pTermRoll + iTermRoll + dTermRoll;
+  PID.output[axis] = PID.p_term[axis] + PID.i_term[axis] + PID.d_term[axis]; /*P + I + D*/
+
+  /*pre saturation output*/
+  PID.presat_output[axis] = PID.output[axis];
 
   /*output saturation*/
-  pidRoll = constrain(pidRoll, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
+  PID.output[axis] = constrain(PID.output[axis], PID.lim_min_output[axis], PID.lim_max_output[axis]);
+
+  /*saturation error*/
+  PID.sat_error[axis] = PID.output[axis] - PID.presat_output[axis];
 
   /*update previous variables*/
-  errorRollAnt = errorRoll;
+  PID.prev_error[axis] = PID.error[axis];
+  PID.prev_feedback[axis] = feedback;
+  PID.prev_delta[axis] = PID.delta[axis];
+
+  /*hover mode*/
+  if (axis == 3) {
+    // if (PID.error[axis] < 0) {
+    //   PID.kd[axis] = (float)(map(PID.error[axis], -100, 0, 25, 90) / 100.0);
+    // } else {
+    //   PID.kd[axis] = (float)(map(PID.error[axis], 0, 100, 90, 25) / 100.0);
+    // }
+     
+    // if (PID.error[axis] < 0) {
+    //   PID.kp[axis] = (float)(map(PID.error[axis], -100, 0, 24, 12) / 10.0);
+    // } else {
+    //   PID.kp[axis] = (float)(map(PID.error[axis], 0, 100, 12, 24) / 10.0);
+    // }  
+   
+    // if (PID.error[axis] < 0) {
+    //   PID.ki[axis] = (float)(map(PID.error[axis], -100, 0, 20, 10) / 10.0);
+    // } else {
+    //   PID.ki[axis] =(float)(map(PID.error[axis], 0, 100, 10, 20) / 10.0);
+    // }   
+   }
+
+  /*(see this work: https://drive.google.com/file/d/1I4uQgPqj5LlNNIw-dCfZhPc1CPUJ-44N/view?usp=sharing)*/
+}
+
+/*******************************************************
+  PID controller init
+/*******************************************************/
+void pid_controller_init(void) {
+  /*updated angles quickly*/
+  rollAngle  = rollAngleAcc;
+  pitchAngle = pitchAngleAcc;
 
 
-  /*PITCH PID*/
+  /*to do, remove*/
+  errorRoll = errorPitch = errorYaw = 0;
+  errorRollAnt = errorPitchAnt = errorYawAnt = 0;
 
-  /*reference*/
-  pitchSetPoint = (((channel[2] - (float)STICK_MIDPOINT) - pitchLevelAdjust) / 3.0);
+  pTermRoll = pTermPitch = pTermYaw = 0;
+  iTermRoll = iTermPitch = iTermYaw = 0;
+  dTermRoll = dTermPitch = dTermYaw = 0;
 
-  /*dead band*/
-  pitchSetPoint = apply_dead_band(pitchSetPoint, 15);  
+  pidRoll = pidPitch = pidYaw = 0;
 
-  /*error*/
-  errorPitch = gyroPitchInput - pitchSetPoint;
+  errorAltHold = 0;
 
-  /*proportional term*/
-  pTermPitch =  KP_PITCH * errorPitch;
+  pTermAltHold = 0;
+  iTermAltHold = 0;
+  dTermAltHold = 0;
 
-  /*integral term*/
-  iTermPitch += KI_PITCH * (errorPitch + errorPitchAnt) * 0.5;
-
-  /*anti-windup*/
-  iTermPitch = constrain(iTermPitch, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
-
-  /*derivative term*/
-  dTermPitch =  KD_PITCH * (errorPitch - errorPitchAnt);
-
-  /*output*/
-  pidPitch = pTermPitch + iTermPitch + dTermPitch;
-
-  /*output saturantion*/
-  pidPitch = constrain(pidPitch, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
-
-  /*update previous varibles*/
-  errorPitchAnt = errorPitch;
+  pidAltHold = 0;
 
 
-  /*YAW PID*/
-
-  /*reference*/
-  (channel[3] > 1100) ? yawSetPoint = ((channel[4] - (float)STICK_MIDPOINT) / 3.0) : yawSetPoint = 0;
-
-  /*dead band*/
-  yawSetPoint = apply_dead_band(yawSetPoint, 20); 
-
-  /*error*/
-  errorYaw = gyroYawInput - yawSetPoint;
-
-  /*proportional term*/
-  pTermYaw =  KP_YAW * errorYaw;
-
-  /*integral term*/
-  iTermYaw += KI_YAW * (errorYaw + errorYawAnt) * 0.5;
-
-  /*anti-windup*/
-  iTermYaw = constrain(iTermYaw, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
-
-  /*output*/
-  pidYaw = pTermYaw + iTermYaw;
-
-  /*output saturation*/
-  pidYaw = constrain(pidYaw, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
-
-  /*update previous variables*/
-  errorYawAnt = errorYaw;
+  /*reset PID variables*/
+  for (uint8_t i = 0; i < NUMBER_CTRL; i ++) {
+    PID.error[i] = 0;
+    PID.prev_error[i] = 0;
+    PID.sat_error[i] = 0;
+    PID.p_term[i] = 0;
+    PID.i_term[i] = 0;
+    PID.d_term[i] = 0;
+    PID.output[i] = 0;
+    PID.prev_output[i] = 0;
+    PID.presat_output[i] = 0;
+    PID.delta[i] = 0;
+    PID.prev_delta[i] = 0;
+    PID.prev_feedback[i] = 0;
+  }
 }
 
 /*******************************************************
@@ -1133,57 +1474,57 @@ float apply_dead_band(float value, uint8_t deadband) {
 }
 
 /*******************************************************
-  read_battery_voltage
+  read battery voltage
 /*******************************************************/
 void read_battery_voltage(void) {
   if (micros() - previousReadVoltagePeriod >= READ_BATTERY_PERIOD) {
     previousReadVoltagePeriod = micros();
 
     float voltage = analogRead(BATTERY_PIN) * VOLTAGE_FACTOR;
-    batteryVoltage = (batteryVoltage * 0.95) + (voltage * 0.05);
+    copter.batteryVoltage = (copter.batteryVoltage * 0.95) + (voltage * 0.05);
   }
 }
 
 /*******************************************************
-  show quad status
+  show on display status
 /*******************************************************/
-void show_quad_status(void) {
-  static unsigned long previousStatusQuadPeriod;
-  static uint8_t quadIndex = 1;
+void show_display_status(void) {
+  static unsigned long previousCopterPeriod = millis();
+  static uint8_t copterIndex = 1;
 
-  if (quadX.status & QUADX_STATUS_OK) {
-    if ((millis() - previousStatusQuadPeriod >= 5000) && (quadIndex == 0)) {
-      previousStatusQuadPeriod = millis();
-      quadIndex = 1;
-    } else if ((millis() - previousStatusQuadPeriod >= 1000) && (quadIndex == 1)) {
-      previousStatusQuadPeriod = millis();
-      quadIndex = 2;
-    } else if ((millis() - previousStatusQuadPeriod >= 5000) && (quadIndex == 2)) {
-      previousStatusQuadPeriod = millis();
-      quadIndex = 3;
-    } else if ((millis() - previousStatusQuadPeriod >= 1000) && (quadIndex == 3)) {
-      previousStatusQuadPeriod = millis();
-      quadIndex = 0;
+  if (copter.status & COPTER_STATUS_OK) {
+    if ((millis() - previousCopterPeriod >= 5000) && (copterIndex == 0)) {
+      previousCopterPeriod = millis();
+      copterIndex = 1;
+    } else if ((millis() - previousCopterPeriod >= 1000) && (copterIndex == 1)) {
+      previousCopterPeriod = millis();
+      copterIndex = 2;
+    } else if ((millis() - previousCopterPeriod >= 5000) && (copterIndex == 2)) {
+      previousCopterPeriod = millis();
+      copterIndex = 3;
+    } else if ((millis() - previousCopterPeriod >= 1000) && (copterIndex == 3)) {
+      previousCopterPeriod = millis();
+      copterIndex = 0;
     }
 
-    if ((quadIndex == 0) || (quadIndex == 2)) {
-      uint16_t volt = (uint16_t)(batteryVoltage * 100);
+    if ((copterIndex == 0) || (copterIndex == 2)) {
+      uint16_t volt = (uint16_t)(copter.batteryVoltage * 100);
 
       uint8_t n1 = (volt / 1000);
       uint8_t n2 = (volt % 1000) * 0.01;
       uint8_t n3 = (volt % 100) * 0.1;
       uint8_t n4 = (volt % 10);
 
-      seven_seg(numbers[n1], numbers[n2] & 0b11111110, numbers[n3], numbers[n4]);
-    } else if (quadIndex == 1) {
-      seven_seg(0b11000001, 0b00010001, 0b11100001, 0b11100001);
-    } else if (quadIndex == 3) {
-      if (quadX.motors == LOCK_THROTTLE) seven_seg(0b11100011, 0b11000101, 0b11100101, 0b11110001);
-      if (quadX.motors == IDLE_THROTTLE) seven_seg(0b10011111, 0b10000101, 0b11100011, 0b01100001);
-      if (quadX.motors == FULL_THROTTLE) seven_seg(0b01110001, 0b10000011, 0b11100011, 0b11100011);
+      update_display(numbers[n1], numbers[n2] & 0b11111110, numbers[n3], numbers[n4]);
+    } else if (copterIndex == 1) {
+      update_display(0b11000001, 0b00010001, 0b11100001, 0b11100001);
+    } else if (copterIndex == 3) {
+      if (copter.motors == LOCK_THROTTLE) update_display(0b11100011, 0b11000101, 0b11100101, 0b11110001);
+      if (copter.motors == IDLE_THROTTLE) update_display(0b10011111, 0b10000101, 0b11100011, 0b01100001);
+      if (copter.motors == FULL_THROTTLE) update_display(0b01110001, 0b10000011, 0b11100011, 0b11100011);
     }
   } else {
-    seven_seg_mux();
+    display_mux();
   }
 }
 
@@ -1191,23 +1532,23 @@ void show_quad_status(void) {
   check alarms
 /*******************************************************/
 void check_alarms(void) {
-  static unsigned long previousBipBuzzerPeriod;
+  static unsigned long previousBipBuzzerPeriod = millis();
   static uint8_t buzzerCounter = 0;
 
-  //bip buzzer, low battery or after 3 minutes
-  if ((batteryVoltage > BATTERY_LOWER_THRESHOLD) && (batteryVoltage < BATTERY_UPPER_THRESHOLD)) {
-    quadX.leds &= ~LED_BLUE;
+  /*bip buzzer->low battery voltage or after 3 minutes stopped*/
+  if ((copter.batteryVoltage > BATTERY_LOWER_THRESHOLD) && (copter.batteryVoltage < BATTERY_UPPER_THRESHOLD)) {
+    copter.leds &= ~LED_BLUE;
     if (micros() - previousBuzzerPeriod >= BUZZER_PERIOD) {
       previousBuzzerPeriod = micros();
       digitalWrite(BUZZER_PIN, !digitalRead(BUZZER_PIN));
     }
-  } else if ((!quadX.buzzer) && (millis() - startQuadXTimer < MAX_RUNNING_TIME)) {
-    quadX.leds |= LED_BLUE;
+  } else if ((!copter.buzzer) && (millis() - startCopterTimer < MAX_RUNNING_TIME)) {
+    copter.leds |= LED_BLUE;
     digitalWrite(BUZZER_PIN, LOW);
   }
 
-  //bip buzzer
-  if ((quadX.buzzer) && (batteryVoltage > BATTERY_UPPER_THRESHOLD) && 
+  /*bip buzzer->general*/
+  if ((copter.buzzer) && (copter.batteryVoltage > BATTERY_UPPER_THRESHOLD) && 
       (millis() - previousBipBuzzerPeriod >= 50)) {
     previousBipBuzzerPeriod = millis();
     digitalWrite(BUZZER_PIN, !digitalRead(BUZZER_PIN));
@@ -1215,146 +1556,227 @@ void check_alarms(void) {
     buzzerCounter ++;
     if (buzzerCounter >= 5) {
       digitalWrite(BUZZER_PIN, LOW);
-      quadX.buzzer = false;
+      copter.buzzer = false;
       buzzerCounter = 0;
     }
   }
 
-  //bip buzzer
-  if ((millis() - startQuadXTimer >= MAX_RUNNING_TIME) && 
+  /*bip buzzer->after 3 minutes stopped*/
+  if ((millis() - startCopterTimer >= MAX_RUNNING_TIME) && 
       (millis() - previousBipBuzzerPeriod >= 200)) {
     previousBipBuzzerPeriod = millis();
     digitalWrite(BUZZER_PIN, !digitalRead(BUZZER_PIN));
   }
 
-  //blink LED green
+  /*blink LED green*/
   if (micros() - previousBlinkPeriod >= BLINK_LED_PERIOD) {
     previousBlinkPeriod = micros();
-    quadX.leds ^= LED_GREEN;
+    copter.leds ^= LED_GREEN;
   }
 
-  //turn on LED red if ctrl loop exceed 4ms
-  (micros() - previousCtrlLoopPeriod > CTRL_LOOP_PERIOD) ? quadX.leds |= LED_RED : quadX.leds &= ~LED_RED;
+  /*if rate loop exceed 4ms (250Hz), turn on LED red*/ 
+  (micros() - previousCtrlLoopPeriod > CTRL_LOOP_PERIOD) ? copter.leds |= LED_RED : copter.leds &= ~LED_RED;
 
-  //switch LEDs states
+  /*switch LEDs state*/
   toggle_leds();
 }
 
 /*******************************************************
-  esc pwm signals
+  run motors
 /*******************************************************/
-void esc_pwm_signals(void) {
-  uint16_t esc1, esc2, esc3, esc4;
+void run_motors(void) {
+  #define PIDMIX(X, Y, Z) (uint16_t)(mainThrottle + (PID.output[0] * X) + (PID.output[1] * Y) + (PID.output[2] * Z))
+  #define SERVODIR(x) ((x > 0) ? 1 : -1)
+  #define TILT_SERVO_MIDDLE 1500UL
+
+  /*
+  tiltOffset = map(channel[6], 1000, 2000, -300, 300);
+  tiltServo.writeMicroseconds(channel[4] - tiltOffset);
+  */
   
-  //lock
-  if (quadX.motors == LOCK_THROTTLE) {
-    esc1 = LOCK_SPEED; esc2 = LOCK_SPEED;
-    esc3 = LOCK_SPEED; esc4 = LOCK_SPEED;
+  /*lock*/
+  if (copter.motors == LOCK_THROTTLE) {
+    for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+      motor[i] = LOCK_SPEED; 
+    }
+
+#if defined(TRICOPTER)
+    tiltOffset = map(channel[6], 1000, 2000, -300, 300);
+    tiltMiddle = (1500 - tiltOffset);
+    
+    motor[3] = tiltMiddle; /*to do, save on eeprom*/
+#endif
   }
 
-  //idle
-  if (quadX.motors == IDLE_THROTTLE) {
-    esc1 = IDLE_SPEED; esc2 = IDLE_SPEED;
-    esc3 = IDLE_SPEED; esc4 = IDLE_SPEED;
+  /*idle*/
+  if (copter.motors == IDLE_THROTTLE) {
+    for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+      motor[i] = IDLE_SPEED; 
+    }
+
+#if defined(TRICOPTER)
+    motor[3] = tiltMiddle;
+#endif
   } 
   
-  //full
-  if (quadX.motors == FULL_THROTTLE) {
-    if (statusAltitudeHold) {
-      currentThrottle = 1500.0 + adjustThrottle + manualThrottle + pidAltHold;
-    } else {
-      currentThrottle = channel[3];
+  /*full*/
+  if (copter.motors == FULL_THROTTLE) {
+    /*throttle signal*/
+    if (statusAltitudeHold) { /*altitude hold mode*/
+      mainThrottle = (uint16_t)(1500.0 + adjustThrottle + manualThrottle + pidAltHold);
+    } else if (statusHover) { /*hover mode*/
+      mainThrottle = hoverThrottle;
+    } else { /*default mode*/
+      mainThrottle = channel[3];
     }
 
-    if (currentThrottle > MAX_THROTTLE) currentThrottle = MAX_THROTTLE;
+    mainThrottle = constrain(mainThrottle, MIN_THROTTLE, MAX_THROTTLE);
 
-    esc1 = (uint16_t)(currentThrottle - pidPitch + pidRoll - pidYaw); //pulse width for ESC 1 front-right - CCW
-    esc2 = (uint16_t)(currentThrottle + pidPitch + pidRoll + pidYaw); //pulse width for ESC 2 rear-right  - CW
-    esc3 = (uint16_t)(currentThrottle + pidPitch - pidRoll - pidYaw); //pulse width for ESC 3 rear-left   - CCW
-    esc4 = (uint16_t)(currentThrottle - pidPitch - pidRoll + pidYaw); //pulse width for ESC 4 front-left  - CW
+#if defined(QUAD_X) /*QUAD CW X*/
+    motor[0] = PIDMIX(+1, -1, -1); /*motor 1 (front-right - CCW)*/
+    motor[1] = PIDMIX(+1, +1, +1); /*motor 2 (rear-right - CW)*/
+    motor[2] = PIDMIX(-1, +1, -1); /*motor 3 (rear-left - CCW)*/
+    motor[3] = PIDMIX(-1, -1, +1); /*motor 4 (front-left - CW)*/
+#elif defined(TRICOPTER) /*TRICOPTER Y*/
+    motor[0] = PIDMIX(-1, -2/3, 0); /*motor 1 (front-right - CW)*/
+    motor[1] = PIDMIX(+1, -2/3, 0); /*motor 2 (front-left - CCW)*/
+    motor[2] = PIDMIX( 0, +4/3, 0); /*motor 3 (rear - CCW)*/
+    //esc4 = (channel[4] - tiltOffset);
+    motor[3] = (SERVODIR(channel[4]) * pidYaw) + (TILT_SERVO_MIDDLE - tiltOffset); //TILT_SERVO_MIDDLE /*tilt servo*/
+#endif
 
-    if (((batteryVoltage > 8.0) && (batteryVoltage < 12.40)) && (!statusAltitudeHold)) {
-      esc1 += esc1 * ((12.40 - batteryVoltage) * BATTERY_COMPENSATION);
-      esc2 += esc2 * ((12.40 - batteryVoltage) * BATTERY_COMPENSATION);
-      esc3 += esc3 * ((12.40 - batteryVoltage) * BATTERY_COMPENSATION);
-      esc4 += esc4 * ((12.40 - batteryVoltage) * BATTERY_COMPENSATION);
+    /*battery voltage compensation*/
+    if (((copter.batteryVoltage > BATTERY_LOWER_TRIGGER) && (copter.batteryVoltage < BATTERY_UPPER_TRIGGER)) && (!statusAltitudeHold)) {
+      for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+        motor[i] += motor[i] * (float(BATTERY_UPPER_TRIGGER - copter.batteryVoltage) * BATTERY_COMPENSATION);
+      }
     }
 
-    //lower and upper speed limit
-    esc1 = constrain(esc1, IDLE_SPEED, FULL_SPEED);
-    esc2 = constrain(esc2, IDLE_SPEED, FULL_SPEED);
-    esc3 = constrain(esc3, IDLE_SPEED, FULL_SPEED);
-    esc4 = constrain(esc4, IDLE_SPEED, FULL_SPEED);
-  } 
+    /*speed limit*/
+    for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+      motor[i] = constrain(motor[i], IDLE_SPEED, FULL_SPEED);
+    }
 
-  virtual_pwm_generate(esc1, esc2, esc3, esc4);
+#if defined(TRICOPTER)
+    if (mainThrottle < 1100) motor[3] = tiltMiddle;
+#endif
+  } else {
+    mainThrottle  = MIN_THROTTLE;
+    hoverThrottle = MIN_THROTTLE;
+  }
+
+  write_pwm();
 }
 
 /*******************************************************
-  virtual pwm generate
+  write PWM
 /*******************************************************/
-void virtual_pwm_generate(uint16_t esc1, uint16_t esc2, uint16_t esc3, uint16_t esc4) {
+void write_pwm(void) {
   unsigned long startTime = micros(); 
   unsigned long currTime;
-  uint8_t flagEscLoop = 0x0F;
+  uint8_t flagPwm = (0xFF >> NUMBER_MOTORS); /*0xFF >> 4 = 0x0F*/
 
-  PORTE |= (1 << PORTE5); PORTB |= (1 << PORTB7);
-  PORTH |= (1 << PORTH4); PORTH |= (1 << PORTH6);
+#if HARD_SOFT_PWM
+  /*set all PWM pins to high*/
+  PORTE |= (1 << PORTE5); /*motor 1*/
+  PORTB |= (1 << PORTB7); /*motor 2*/
+  PORTH |= (1 << PORTH4); /*motor 3*/
 
-  while (flagEscLoop > 0x00) {
+#if defined(QUAD_X)
+  PORTH |= (1 << PORTH6); /*motor 4*/
+#elif defined(TRICOPTER)
+  PORTB |= (1 << PORTB3); /*tilt servo*/
+#endif
+
+  while (flagPwm > 0x00) {
     currTime = micros();
-    if (currTime >= startTime + esc1) {
+
+    if (currTime >= startTime + motor[0]) {
       PORTE &= ~(1 << PORTE5);
-      flagEscLoop &= 0b00001110;
+      flagPwm &= 0b00001110;
     }
 
-    if (currTime >= startTime + esc2) {
+    if (currTime >= startTime + motor[1]) {
       PORTB &= ~(1 << PORTB7);
-      flagEscLoop &= 0b00001101;
+      flagPwm &= 0b00001101;
     }
 
-    if (currTime >= startTime + esc3) {
+    if (currTime >= startTime + motor[2]) {
       PORTH &= ~(1 << PORTH4);
-      flagEscLoop &= 0b00001011;
+      flagPwm &= 0b00001011;
     }
 
-    if (currTime >= startTime + esc4) {
+#if defined(QUAD_X)
+    if (currTime >= startTime + motor[3]) {
       PORTH &= ~(1 << PORTH6);
-      flagEscLoop &= 0b00000111;
+      flagPwm &= 0b00000111;
     }
+#elif defined(TRICOPTER)
+    if (currTime >= startTime + motor[3]) {
+      PORTB &= ~(1 << PORTB3);
+      flagPwm &= 0b00000111;
+    }
+#endif
 
     if (currTime - startTime >= PWM_SAFETY_PERIOD) {
-      PORTE &= ~(1 << PORTE5); PORTB &= ~(1 << PORTB7);
-      PORTH &= ~(1 << PORTH4); PORTH &= ~(1 << PORTH6);
-      flagEscLoop &= 0b00000000;
+      PORTE &= ~(1 << PORTE5); /*motor 1*/
+      PORTB &= ~(1 << PORTB7); /*motor 2*/
+      PORTH &= ~(1 << PORTH4); /*motor 3*/
+      PORTH &= ~(1 << PORTH6); /*motor 4*/
+      PORTB &= ~(1 << PORTB3); /*tilt servo*/
+
+      flagPwm &= 0x00;
       break;
     }
   }
+#else
+  pwm_motor[0].writeMicroseconds(motor[0]);
+  pwm_motor[1].writeMicroseconds(motor[1]);
+  pwm_motor[2].writeMicroseconds(motor[2]);
+  pwm_motor[3].writeMicroseconds(motor[3]);
+#endif
 }
 
 /*******************************************************
-  esc calibration signals
+  calibration ESCs
 /*******************************************************/
-bool esc_calibration_signals(void) {
+bool calibrate_escs(void) {
   unsigned long startEscCalibrationTime = millis();
   uint8_t flagThrottleMoved = 0;
   uint16_t i = 0;
   uint8_t k = 0;
 
   while (true) {
-    virtual_pwm_generate(channel[3], channel[3], channel[3], channel[3]);
+    for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+      motor[i] = channel[3];
+    }
+    
+#if defined(TRICOPTER)
+    motor[3] = tiltMiddle;
+#endif
+
+    write_pwm();
 
     if ((flagThrottleMoved == 0) && (channel[3] > 1850)) flagThrottleMoved = 1;
     if ((flagThrottleMoved == 1) && (channel[3] < 1100)) flagThrottleMoved = 2;
 
-    //exit
+    /*exit*/
     if ((channel[1] > 1900) && (channel[2] < 1100)) {
-      virtual_pwm_generate(LOCK_SPEED, LOCK_SPEED, LOCK_SPEED, LOCK_SPEED);
+      for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+        motor[i] = LOCK_SPEED;
+      }
+
+#if defined(TRICOPTER)
+      motor[3] = tiltMiddle;
+#endif
+
+      write_pwm();
+
       if (flagThrottleMoved == 2) return true;
       else return false;
     }
 
-    //if passed 1min, exit
+    /*if passed 1min, exit*/
     if (millis() - startEscCalibrationTime >= WAITING_SAFETY_PERIOD) {
       return false;
     }
@@ -1364,37 +1786,12 @@ bool esc_calibration_signals(void) {
       (k >= 2) ? k = 0 : k ++;
     }
 
-    if (k == 0) seven_seg(0b01111111, 0b01111111, 0b01111111, 0b01111111);
-    if (k == 1) seven_seg(0b11111101, 0b11111101, 0b11111101, 0b11111101);
-    if (k == 2) seven_seg(0b11101111, 0b11101111, 0b11101111, 0b11101111);
+    if (k == 0) update_display(0b01111111, 0b01111111, 0b01111111, 0b01111111);
+    if (k == 1) update_display(0b11111101, 0b11111101, 0b11111101, 0b11111101);
+    if (k == 2) update_display(0b11101111, 0b11101111, 0b11101111, 0b11101111);
     
     delayMicroseconds(4000);
   }
-}
-
-/*******************************************************
-  reset PID variables
-/*******************************************************/
-void reset_variables(void) {
-  rollAngle  = rollAngleAcc;
-  pitchAngle = pitchAngleAcc;
-
-  errorRoll = errorPitch = errorYaw = 0;
-  errorRollAnt = errorPitchAnt = errorYawAnt = 0;
-
-  pTermRoll = pTermPitch = pTermYaw = 0;
-  iTermRoll = iTermPitch = iTermYaw = 0;
-  dTermRoll = dTermPitch = dTermYaw = 0;
-
-  pidRoll = pidPitch = pidYaw = 0;
-
-  errorAltHold = 0;
-
-  pTermAltHold = 0;
-  iTermAltHold = 0;
-  dTermAltHold = 0;
-
-  pidAltHold = 0;
 }
 
 /*******************************************************
@@ -1407,96 +1804,107 @@ bool calibrate_gyroscope(void) {
   int32_t gyroYCalib = 0;
   int32_t gyroZCalib = 0;
 
-  //reset previous offset
-  MPU6050.gyroXOffset.val = 0;
-  MPU6050.gyroYOffset.val = 0;
-  MPU6050.gyroZOffset.val = 0;
+  /*reset previous offset*/
+  IMU.gyroXOffset.val = 0;
+  IMU.gyroYOffset.val = 0;
+  IMU.gyroZOffset.val = 0;
 
-#if DEBUG_MPU
+#if DEBUG_IMU
   Serial.println(F("CALIBRATING GYROSCOPE..."));
 #endif
 
   for (uint16_t i = 0; i < GYRO_OFFSET_INDEX; i ++) {
     if (i % 50 == 0) {
-      if (channel[5] > 1500) quadX.leds ^= LED_GREEN | LED_FRONT | LED_REAR;
-      else quadX.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
+      if (channel[5] > 1500) copter.leds ^= LED_GREEN | LED_FRONT | LED_REAR;
+      else copter.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
 
       toggle_leds();
 
       (k >= 2) ? k = 0 : k ++;
     }
 
-    if (k == 0) seven_seg(0b01111111, 0b01111111, 0b01111111, 0b01111111);
-    if (k == 1) seven_seg(0b11111101, 0b11111101, 0b11111101, 0b11111101);
-    if (k == 2) seven_seg(0b11101111, 0b11101111, 0b11101111, 0b11101111);
+    if (k == 0) update_display(0b01111111, 0b01111111, 0b01111111, 0b01111111);
+    if (k == 1) update_display(0b11111101, 0b11111101, 0b11111101, 0b11111101);
+    if (k == 2) update_display(0b11101111, 0b11101111, 0b11101111, 0b11101111);
 
-#if DEBUG_MPU
+#if DEBUG_IMU
     Serial.print(F("["));
     Serial.print(i + 1);
     Serial.print(F("]: "));
-    Serial.print(MPU6050.gyroX);
+    Serial.print(IMU.gyroX);
     Serial.print(F("  "));
-    Serial.print(MPU6050.gyroY);
+    Serial.print(IMU.gyroY);
     Serial.print(F("  "));
-    Serial.println(MPU6050.gyroZ);
+    Serial.println(IMU.gyroZ);
 #endif
 
-    acc_gyro_values();    
-    virtual_pwm_generate(LOCK_SPEED, LOCK_SPEED, LOCK_SPEED, LOCK_SPEED);
+    IMU_compute();    
 
-    gyroXCalib += MPU6050.gyroX;   
-    gyroYCalib += MPU6050.gyroY;  
-    gyroZCalib += MPU6050.gyroZ;   
+    for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+      motor[i] = LOCK_SPEED;
+    }
+
+#if defined(TRICOPTER)
+    motor[3] = tiltMiddle;
+#endif
+
+    write_pwm();
+
+    gyroXCalib += IMU.gyroX;   
+    gyroYCalib += IMU.gyroY;  
+    gyroZCalib += IMU.gyroZ;   
     delayMicroseconds(4000);                      
   }
 
-  MPU6050.gyroXOffset.val = (int32_t)((float)gyroXCalib / (float)GYRO_OFFSET_INDEX);
-  MPU6050.gyroYOffset.val = (int32_t)((float)gyroYCalib / (float)GYRO_OFFSET_INDEX);
-  MPU6050.gyroZOffset.val = (int32_t)((float)gyroZCalib / (float)GYRO_OFFSET_INDEX);
+  IMU.gyroXOffset.val = (int32_t)((float)gyroXCalib / (float)GYRO_OFFSET_INDEX);
+  IMU.gyroYOffset.val = (int32_t)((float)gyroYCalib / (float)GYRO_OFFSET_INDEX);
+  IMU.gyroZOffset.val = (int32_t)((float)gyroZCalib / (float)GYRO_OFFSET_INDEX);
 
-#if DEBUG_MPU
+#if DEBUG_IMU
   Serial.println(F("GYROSCOPE OFFSETs"));
   Serial.print(F("X: "));
-  Serial.print(MPU6050.gyroXOffset.val);
+  Serial.print(IMU.gyroXOffset.val);
   Serial.print(F(" Y: "));
-  Serial.print(MPU6050.gyroYOffset.val);
+  Serial.print(IMU.gyroYOffset.val);
   Serial.print(F(" Z: "));
-  Serial.println(MPU6050.gyroZOffset.val);
+  Serial.println(IMU.gyroZOffset.val);
 #endif
 
-  if ((MPU6050.gyroXOffset.val < -255) || (MPU6050.gyroXOffset.val > 255) ||
-      (MPU6050.gyroYOffset.val < -255) || (MPU6050.gyroYOffset.val > 255) ||
-      (MPU6050.gyroZOffset.val < -255) || (MPU6050.gyroZOffset.val > 255)) {
-#if DEBUG_MPU
+  /*high calibration value? error*/
+  if ((IMU.gyroXOffset.val < -255) || (IMU.gyroXOffset.val > 255) ||
+      (IMU.gyroYOffset.val < -255) || (IMU.gyroYOffset.val > 255) ||
+      (IMU.gyroZOffset.val < -255) || (IMU.gyroZOffset.val > 255)) {
+#if DEBUG_IMU
     Serial.println(F("GYROSCOPE NOT CALIBRATED"));
 #endif
-    MPU6050.gyroXOffset.val = 0;
-    MPU6050.gyroYOffset.val = 0;
-    MPU6050.gyroZOffset.val = 0;
+    IMU.gyroXOffset.val = 0;
+    IMU.gyroYOffset.val = 0;
+    IMU.gyroZOffset.val = 0;
 
     for (uint8_t i = GYROX_OFFSET_EEPROM_ADDR; i <= GYROZ_OFFSET_EEPROM_ADDR+3; i ++) {
       EEPROM.write(i, 0);
     }
     return false;
   } else {
-#if DEBUG_MPU
+#if DEBUG_IMU
     Serial.println(F("GYROSCOPE CALIBRATED"));
 #endif
 
-    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR,   MPU6050.gyroXOffset.raw[3]);
-    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR+1, MPU6050.gyroXOffset.raw[2]);
-    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR+2, MPU6050.gyroXOffset.raw[1]);
-    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR+3, MPU6050.gyroXOffset.raw[0]);
+    /*save on EEPROM calibration values*/
+    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR,   IMU.gyroXOffset.raw[3]);
+    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR+1, IMU.gyroXOffset.raw[2]);
+    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR+2, IMU.gyroXOffset.raw[1]);
+    EEPROM.write(GYROX_OFFSET_EEPROM_ADDR+3, IMU.gyroXOffset.raw[0]);
 
-    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR,   MPU6050.gyroYOffset.raw[3]);
-    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR+1, MPU6050.gyroYOffset.raw[2]);
-    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR+2, MPU6050.gyroYOffset.raw[1]);
-    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR+3, MPU6050.gyroYOffset.raw[0]);
+    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR,   IMU.gyroYOffset.raw[3]);
+    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR+1, IMU.gyroYOffset.raw[2]);
+    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR+2, IMU.gyroYOffset.raw[1]);
+    EEPROM.write(GYROY_OFFSET_EEPROM_ADDR+3, IMU.gyroYOffset.raw[0]);
 
-    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR,   MPU6050.gyroZOffset.raw[3]);
-    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR+1, MPU6050.gyroZOffset.raw[2]);
-    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR+2, MPU6050.gyroZOffset.raw[1]);
-    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR+3, MPU6050.gyroZOffset.raw[0]);
+    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR,   IMU.gyroZOffset.raw[3]);
+    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR+1, IMU.gyroZOffset.raw[2]);
+    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR+2, IMU.gyroZOffset.raw[1]);
+    EEPROM.write(GYROZ_OFFSET_EEPROM_ADDR+3, IMU.gyroZOffset.raw[0]);
 
     return true;
   }
@@ -1512,47 +1920,57 @@ bool calibrate_accelerometer(void) {
   int32_t accYCal = 0;
 
   //reset previous offset
-  MPU6050.accXOffset.val = 0; 
-  MPU6050.accYOffset.val = 0;
+  IMU.accXOffset.val = 0; 
+  IMU.accYOffset.val = 0;
 
-#if DEBUG_MPU
+#if DEBUG_IMU
   Serial.println(F("CALIBRATING ACCELEROMETER..."));
 #endif
 
   for (uint8_t i = 0; i < ACC_OFFSET_INDEX; i ++) {
     if (i % 10 == 0) {
-      if (channel[5] > 1500) quadX.leds ^= LED_GREEN | LED_FRONT | LED_REAR;
-      else quadX.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
+      if (channel[5] > 1500) copter.leds ^= LED_GREEN | LED_FRONT | LED_REAR;
+      else copter.leds &= ~LED_YELLOW & ~LED_FRONT & ~LED_REAR;
 
       (k >= 2) ? k = 0 : k ++;
     }
 
-    if (k == 0) seven_seg(0b01111111, 0b01111111, 0b01111111, 0b01111111);
-    if (k == 1) seven_seg(0b11111101, 0b11111101, 0b11111101, 0b11111101);
-    if (k == 2) seven_seg(0b11101111, 0b11101111, 0b11101111, 0b11101111);
+    if (k == 0) update_display(0b01111111, 0b01111111, 0b01111111, 0b01111111);
+    if (k == 1) update_display(0b11111101, 0b11111101, 0b11111101, 0b11111101);
+    if (k == 2) update_display(0b11101111, 0b11101111, 0b11101111, 0b11101111);
 
-#if DEBUG_MPU
+#if DEBUG_IMU
     Serial.print(F("["));
     Serial.print(i + 1);
     Serial.print(F("]: "));
-    Serial.print(MPU6050.accX);
+    Serial.print(IMU.accX);
     Serial.print(F("  "));
-    Serial.println(MPU6050.accY);
+    Serial.println(IMU.accY);
 #endif
 
-    acc_gyro_values();    
-    virtual_pwm_generate(LOCK_SPEED, LOCK_SPEED, LOCK_SPEED, LOCK_SPEED);
+    IMU_compute();    
 
-    accXCal += MPU6050.accX;   
-    accYCal += MPU6050.accY;  
+    for (uint8_t i = 0; i < NUMBER_MOTORS; i ++) {
+      motor[i] = LOCK_SPEED;
+    }
+    
+#if defined(TRICOPTER)
+    motor[3] = tiltMiddle;
+#endif
 
-    if ((MPU6050.accX < -500) || (MPU6050.accX > 500) || 
-        (MPU6050.accY < -500) || (MPU6050.accY > 500)) {
-#if DEBUG_MPU
+    write_pwm();
+
+    accXCal += IMU.accX;   
+    accYCal += IMU.accY;  
+
+    /*high value of calibration? error*/
+    if ((IMU.accX < -500) || (IMU.accX > 500) || 
+        (IMU.accY < -500) || (IMU.accY > 500)) {
+#if DEBUG_IMU
       Serial.println(F("ACCELEROMETER NOT CALIBRATED"));
 #endif
-      MPU6050.accXOffset.val = 0;   
-      MPU6050.accYOffset.val = 0;  
+      IMU.accXOffset.val = 0;   
+      IMU.accYOffset.val = 0;  
 
       for (uint8_t i = ACCX_OFFSET_EEPROM_ADDR; i <= ACCY_OFFSET_EEPROM_ADDR+3; i ++) {
         EEPROM.write(i, 0);
@@ -1563,92 +1981,100 @@ bool calibrate_accelerometer(void) {
     delayMicroseconds(4000);                      
   }
 
-  MPU6050.accXOffset.val = (int32_t)((float)accXCal / (float)ACC_OFFSET_INDEX);
-  MPU6050.accYOffset.val = (int32_t)((float)accYCal / (float)ACC_OFFSET_INDEX);
+  IMU.accXOffset.val = (int32_t)((float)accXCal / (float)ACC_OFFSET_INDEX);
+  IMU.accYOffset.val = (int32_t)((float)accYCal / (float)ACC_OFFSET_INDEX);
 
-#if DEBUG_MPU
+#if DEBUG_IMU
   Serial.println(F("ACCELEROMETER OFFSETs"));
   Serial.print(F("ACC X: "));
-  Serial.print(MPU6050.accXOffset.val);
+  Serial.print(IMU.accXOffset.val);
   Serial.print(F(" ACC Y: "));
-  Serial.println(MPU6050.accYOffset.val);
+  Serial.println(IMU.accYOffset.val);
 #endif
 
-#if DEBUG_MPU
+#if DEBUG_IMU
   Serial.println(F("ACCELEROMETER CALIBRATED"));
 #endif
 
-  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR,   MPU6050.accXOffset.raw[3]);
-  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR+1, MPU6050.accXOffset.raw[2]);
-  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR+2, MPU6050.accXOffset.raw[1]);
-  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR+3, MPU6050.accXOffset.raw[0]);
+  /*save on EEPROM offset values*/
+  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR,   IMU.accXOffset.raw[3]);
+  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR+1, IMU.accXOffset.raw[2]);
+  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR+2, IMU.accXOffset.raw[1]);
+  EEPROM.write(ACCX_OFFSET_EEPROM_ADDR+3, IMU.accXOffset.raw[0]);
 
-  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR,   MPU6050.accYOffset.raw[3]);
-  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR+1, MPU6050.accYOffset.raw[2]);
-  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR+2, MPU6050.accYOffset.raw[1]);
-  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR+3, MPU6050.accYOffset.raw[0]);
+  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR,   IMU.accYOffset.raw[3]);
+  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR+1, IMU.accYOffset.raw[2]);
+  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR+2, IMU.accYOffset.raw[1]);
+  EEPROM.write(ACCY_OFFSET_EEPROM_ADDR+3, IMU.accYOffset.raw[0]);
 
   return true;
 }
 
 /*******************************************************
-  reading EEPROM
+  read EEPROM
 /*******************************************************/
 bool read_eeprom(void) {
   uint8_t a, b, c, d;
 
+  /*gyroscope X offset*/
   a = (uint8_t)EEPROM.read(GYROX_OFFSET_EEPROM_ADDR);
   b = (uint8_t)EEPROM.read(GYROX_OFFSET_EEPROM_ADDR+1);
   c = (uint8_t)EEPROM.read(GYROX_OFFSET_EEPROM_ADDR+2);
   d = (uint8_t)EEPROM.read(GYROX_OFFSET_EEPROM_ADDR+3);
-  MPU6050.gyroXOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
+  IMU.gyroXOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d); /*to do, use union*/
 
+  /*gyroscope Y offset*/
   a = (uint8_t)EEPROM.read(GYROY_OFFSET_EEPROM_ADDR);
   b = (uint8_t)EEPROM.read(GYROY_OFFSET_EEPROM_ADDR+1);
   c = (uint8_t)EEPROM.read(GYROY_OFFSET_EEPROM_ADDR+2);
   d = (uint8_t)EEPROM.read(GYROY_OFFSET_EEPROM_ADDR+3);
-  MPU6050.gyroYOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
+  IMU.gyroYOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
 
+  /*gyroscope Z offset*/
   a = (uint8_t)EEPROM.read(GYROZ_OFFSET_EEPROM_ADDR);
   b = (uint8_t)EEPROM.read(GYROZ_OFFSET_EEPROM_ADDR+1);
   c = (uint8_t)EEPROM.read(GYROZ_OFFSET_EEPROM_ADDR+2);
   d = (uint8_t)EEPROM.read(GYROZ_OFFSET_EEPROM_ADDR+3);
-  MPU6050.gyroZOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
+  IMU.gyroZOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
 
+  /*accelerometer X offset*/
   a = (uint8_t)EEPROM.read(ACCX_OFFSET_EEPROM_ADDR);
   b = (uint8_t)EEPROM.read(ACCX_OFFSET_EEPROM_ADDR+1);
   c = (uint8_t)EEPROM.read(ACCX_OFFSET_EEPROM_ADDR+2);
   d = (uint8_t)EEPROM.read(ACCX_OFFSET_EEPROM_ADDR+3);
-  MPU6050.accXOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
+  IMU.accXOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
 
+  /*accelerometer Y offset*/
   a = (uint8_t)EEPROM.read(ACCY_OFFSET_EEPROM_ADDR);
   b = (uint8_t)EEPROM.read(ACCY_OFFSET_EEPROM_ADDR+1);
   c = (uint8_t)EEPROM.read(ACCY_OFFSET_EEPROM_ADDR+2);
   d = (uint8_t)EEPROM.read(ACCY_OFFSET_EEPROM_ADDR+3);
-  MPU6050.accYOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
+  IMU.accYOffset.val = (int16_t)((a << 32) | (b << 16) | (c << 8) | d);
 
+  /*flag to calibrate ESCs*/
   statusCalibrationEsc = (bool)EEPROM.read(ESC_CAL_EEPROM_ADDR);
   
 #if DEBUG_EEPROM
   Serial.println(F("\nMPU6050 OFFSETs"));
-  Serial.print(F("GYRO X: ")); Serial.println(MPU6050.gyroXOffset.val);
-  Serial.print(F("GYRO Y: ")); Serial.println(MPU6050.gyroYOffset.val);
-  Serial.print(F("GYRO Z: ")); Serial.println(MPU6050.gyroZOffset.val);
-  Serial.print(F("ACC X: ")); Serial.println(MPU6050.accXOffset.val);
-  Serial.print(F("ACC Y: ")); Serial.println(MPU6050.accYOffset.val);
+  Serial.print(F("GYRO X: ")); Serial.println(IMU.gyroXOffset.val);
+  Serial.print(F("GYRO Y: ")); Serial.println(IMU.gyroYOffset.val);
+  Serial.print(F("GYRO Z: ")); Serial.println(IMU.gyroZOffset.val);
+  Serial.print(F("ACC X: ")); Serial.println(IMU.accXOffset.val);
+  Serial.print(F("ACC Y: ")); Serial.println(IMU.accYOffset.val);
   Serial.print(F("ESC CALIBRATION STATUS: ")); Serial.println(statusCalibrationEsc);
 #endif 
 
-  if ((MPU6050.gyroXOffset.val < -255) || (MPU6050.gyroXOffset.val > 255) ||
-      (MPU6050.gyroYOffset.val < -255) || (MPU6050.gyroYOffset.val > 255) || 
-      (MPU6050.gyroZOffset.val < -255) || (MPU6050.gyroZOffset.val > 255) ||
-      (MPU6050.accXOffset.val  < -500) || (MPU6050.accXOffset.val  > 500) ||
-      (MPU6050.accYOffset.val  < -500) || (MPU6050.accYOffset.val  > 500)) {
-    MPU6050.gyroXOffset.val = 0;
-    MPU6050.gyroYOffset.val = 0;
-    MPU6050.gyroZOffset.val = 0;
-    MPU6050.accXOffset.val = 0;
-    MPU6050.accYOffset.val = 0;
+  /*at least one high offset value? reset all values*/
+  if ((IMU.gyroXOffset.val < -255) || (IMU.gyroXOffset.val > 255) ||
+      (IMU.gyroYOffset.val < -255) || (IMU.gyroYOffset.val > 255) || 
+      (IMU.gyroZOffset.val < -255) || (IMU.gyroZOffset.val > 255) ||
+      (IMU.accXOffset.val  < -500) || (IMU.accXOffset.val  > 500) ||
+      (IMU.accYOffset.val  < -500) || (IMU.accYOffset.val  > 500)) {
+    IMU.gyroXOffset.val = 0;
+    IMU.gyroYOffset.val = 0;
+    IMU.gyroZOffset.val = 0;
+    IMU.accXOffset.val = 0;
+    IMU.accYOffset.val = 0;
     return false;
   } else {
     return true;
@@ -1656,49 +2082,50 @@ bool read_eeprom(void) {
 }
 
 /*******************************************************
-  waiting radio signals
+  waiting radio start
 /*******************************************************/
-bool wait_radio_signals(void) {
+bool wait_radio_start(void) {
   unsigned long startWaitRadioTime = millis();
-  uint8_t flagWaitRadio = 0xFF;
   uint16_t i = 0;
   uint8_t k = 0;
 
+  for (uint8_t i = 0; i < 9; i ++) {
+    channel[i] = STICK_INIT_VAL;
+  }
+
   while (true) {
-    if (channel[1] < 1100) flagWaitRadio &= 0b11111110;
-    if (channel[1] > 1900) flagWaitRadio &= 0b11111101;
-    if (channel[2] < 1100) flagWaitRadio &= 0b11111011;
-    if (channel[2] > 1900) flagWaitRadio &= 0b11110111;
-    if (channel[3] < 1100) flagWaitRadio &= 0b11101111;
-    if (channel[3] > 1900) flagWaitRadio &= 0b11011111;
-    if (channel[4] < 1100) flagWaitRadio &= 0b10111111;
-    if (channel[4] > 1900) flagWaitRadio &= 0b01111111;
+    uint8_t counter = 0;
+    for (uint8_t i = 0; i < 9; i ++) {
+      if (channel[i] != STICK_INIT_VAL) counter ++;
+    }
     
-    if (flagWaitRadio == 0x00) return true;
-    if (millis() - startWaitRadioTime >= WAITING_SAFETY_PERIOD) return false;
+    if (counter >= 3) {
+      return true;
+    } else if (millis() - startWaitRadioTime >= WAITING_SAFETY_PERIOD) {
+      return false;
+    }
  
     i ++;
     if (i % 50 == 0) {
       (k >= 2) ? k = 0 : k ++;
     }
 
-    if (k == 0) seven_seg(0b01111111, 0b01111111, 0b01111111, 0b01111111);
-    if (k == 1) seven_seg(0b11111101, 0b11111101, 0b11111101, 0b11111101);
-    if (k == 2) seven_seg(0b11101111, 0b11101111, 0b11101111, 0b11101111);
+    if (k == 0) update_display(0b01111111, 0b01111111, 0b01111111, 0b01111111);
+    if (k == 1) update_display(0b11111101, 0b11111101, 0b11111101, 0b11111101);
+    if (k == 2) update_display(0b11101111, 0b11101111, 0b11101111, 0b11101111);
     
     delayMicroseconds(4000);
   }
 }
 
 /*******************************************************
-  seven seg display
+  update display
 /*******************************************************/
-void seven_seg(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4) {
+void update_display(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4) {
   static uint8_t index = 0;
+  (index > 3) ? index = 0 : index ++;
 
-  index ++;
-  if (index > 3) index = 0;
-
+  /*multiplex display*/
   switch (index) {
     case 0: {
       digitalWrite(LATCH_PIN, LOW);
@@ -1735,13 +2162,14 @@ void seven_seg(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4) {
 }
 
 /*******************************************************
-  seven seg muxtiplex
+  display mux
 /*******************************************************/
-bool seven_seg_mux(void) {
-  static unsigned long previousSlidePeriod;
-  static unsigned long previousBlinkPeriod;
+bool display_mux(void) {
+  static unsigned long previousSlidePeriod = millis();
   static uint8_t index = 0;
   static bool flag = false;
+
+  (index >= 3) ? index = 0 : index ++;
 
   switch (index) {
     case 0: {
@@ -1777,10 +2205,7 @@ bool seven_seg_mux(void) {
     break;
   }
 
-  index ++;
-  if (index >= 4) index = 0;
-
-  //circular buffer
+  /*circular buffer*/
   if (millis() - previousSlidePeriod >= 300) {
     previousSlidePeriod = millis();
 
@@ -1793,12 +2218,9 @@ bool seven_seg_mux(void) {
       for (uint8_t i = 0; i < end; i ++) msg[i] = msg[i + 1];
       msg[end] = aux;
     }
-  }
 
-  if (millis() - previousBlinkPeriod >= 500) {
-    previousBlinkPeriod = millis();
-    
-    quadX.leds ^= LED_YELLOW | LED_FRONT | LED_REAR;
+    /*blink LEDs*/
+    copter.leds ^= LED_YELLOW | LED_FRONT | LED_REAR;
     toggle_leds();
   }
 }
@@ -1808,43 +2230,43 @@ bool seven_seg_mux(void) {
 /*******************************************************/
 void fail_message(void) {
   for (uint16_t i = 0; i < 500; i ++) {
-    seven_seg(0b01110001, 0b00010001, 0b10011111, 0b11100011);
+    update_display(0b01110001, 0b00010001, 0b10011111, 0b11100011);
     delayMicroseconds(4000);
   }
 }
 
 /*******************************************************
-  print info
+  print parameters
 /*******************************************************/
-void print_info(uint8_t index) {
+void print_parameters(uint8_t index) {
   static uint8_t printIndex = 0;
 
   switch (index) {
     case 1: {
       (printIndex <= 0x0F) ? printIndex ++ : printIndex = 0;
       if (printIndex == 0x00) Serial.print(F("GX "));
-      if (printIndex == 0x01) Serial.print(MPU6050.gyroX);
+      if (printIndex == 0x01) Serial.print(IMU.gyroX);
       if (printIndex == 0x02) Serial.print(F(" GY "));
-      if (printIndex == 0x03) Serial.print(MPU6050.gyroY);
+      if (printIndex == 0x03) Serial.print(IMU.gyroY);
       if (printIndex == 0x04) Serial.print(F(" ACCX "));
-      if (printIndex == 0x05) Serial.print(MPU6050.accX);
+      if (printIndex == 0x05) Serial.print(IMU.accX);
       if (printIndex == 0x06) Serial.print(F(" ACCY "));
-      if (printIndex == 0x07) Serial.print(MPU6050.accY);
+      if (printIndex == 0x07) Serial.print(IMU.accY);
       if (printIndex == 0x08) Serial.print(F(" OFF GX "));
-      if (printIndex == 0x09) Serial.print(MPU6050.gyroXOffset.val);
+      if (printIndex == 0x09) Serial.print(IMU.gyroXOffset.val);
       if (printIndex == 0x0A) Serial.print(F(" OFF GY "));
-      if (printIndex == 0x0B) Serial.print(MPU6050.gyroYOffset.val);
+      if (printIndex == 0x0B) Serial.print(IMU.gyroYOffset.val);
       if (printIndex == 0x0C) Serial.print(F(" OFF ACCX "));
-      if (printIndex == 0x0D) Serial.print(MPU6050.accXOffset.val);
+      if (printIndex == 0x0D) Serial.print(IMU.accXOffset.val);
       if (printIndex == 0x0E) Serial.print(F(" OFF ACCY "));
-      if (printIndex == 0x0F) Serial.println(MPU6050.accYOffset.val);
+      if (printIndex == 0x0F) Serial.println(IMU.accYOffset.val);
     }
     break;
 
     case 2: {
       (printIndex <= 0x0B) ? printIndex ++ : printIndex = 0;
       if (printIndex == 0x00) Serial.print(F("ROLL SP "));
-      if (printIndex == 0x01) Serial.print(rollSetPoint);
+      if (printIndex == 0x01) Serial.print(rollSetpoint);
       if (printIndex == 0x02) Serial.print(F(" ADJ "));
       if (printIndex == 0x03) Serial.print(rollLevelAdjust);
       if (printIndex == 0x04) Serial.print(F(" GYRO "));
@@ -1861,7 +2283,7 @@ void print_info(uint8_t index) {
     case 3: {
       (printIndex <= 0x0B) ? printIndex ++ : printIndex = 0;
       if (printIndex == 0x00) Serial.print(F("PITCH SP "));
-      if (printIndex == 0x01) Serial.print(pitchSetPoint);
+      if (printIndex == 0x01) Serial.print(pitchSetpoint);
       if (printIndex == 0x02) Serial.print(F(" ADJ "));
       if (printIndex == 0x03) Serial.print(pitchLevelAdjust);
       if (printIndex == 0x04) Serial.print(F(" GYRO "));
@@ -1876,18 +2298,24 @@ void print_info(uint8_t index) {
     break;
 
     case 4: {
-      (printIndex <= 0x05) ? printIndex ++ : printIndex = 0;
+      (printIndex <= 0x0B) ? printIndex ++ : printIndex = 0;
       if (printIndex == 0x00) Serial.print(F("YAW SP "));
-      if (printIndex == 0x01) Serial.print(yawSetPoint);
+      if (printIndex == 0x01) Serial.print(yawSetpoint);
       if (printIndex == 0x02) Serial.print(F(" GYRO "));
       if (printIndex == 0x03) Serial.print(gyroYawInput);
-      if (printIndex == 0x04) Serial.print(F(" OUT "));
-      if (printIndex == 0x05) Serial.println(pidYaw);
+      if (printIndex == 0x04) Serial.print(F(" P "));
+      if (printIndex == 0x05) Serial.print(PID.p_term[2]);
+      if (printIndex == 0x06) Serial.print(F(" I "));
+      if (printIndex == 0x07) Serial.print(PID.i_term[2]);
+      if (printIndex == 0x08) Serial.print(F(" OUT "));
+      if (printIndex == 0x09) Serial.print(PID.output[2]);
+      if (printIndex == 0x0A) Serial.print(F(" M[3] "));
+      if (printIndex == 0x0B) Serial.println(motor[3]);
     }
     break;
     
     case 5: {
-      (printIndex < 16) ? printIndex ++ : printIndex = 0;
+      (printIndex <= 0x0F) ? printIndex ++ : printIndex = 0;
       if (printIndex == 0x00) Serial.print(F("CH1 "));
       if (printIndex == 0x01) Serial.print(channel[1]);
       if (printIndex == 0x02) Serial.print(F(" CH2 "));
@@ -1908,13 +2336,13 @@ void print_info(uint8_t index) {
     break;
 
     case 6: {
-      (printIndex < 7) ? printIndex ++ : printIndex = 0;
-      if (printIndex == 0x01) Serial.print(F("QUADX STS "));
-      if (printIndex == 0x02) Serial.print(quadX.status, BIN);
+      (printIndex <= 0x06) ? printIndex ++ : printIndex = 0;
+      if (printIndex == 0x01) Serial.print(F("COPTER STS "));
+      if (printIndex == 0x02) Serial.print(copter.status, BIN);
       if (printIndex == 0x03) Serial.print(F(" MOTOR STS "));
-      if (printIndex == 0x04) Serial.print(quadX.motors);
+      if (printIndex == 0x04) Serial.print(copter.motors);
       if (printIndex == 0x05) Serial.print(F(" BATT "));
-      if (printIndex == 0x06) Serial.println(batteryVoltage);
+      if (printIndex == 0x06) Serial.println(copter.batteryVoltage);
     }
     break;
 
@@ -1925,7 +2353,7 @@ void print_info(uint8_t index) {
       if (printIndex == 0x02) Serial.print(F(" CH3 "));
       if (printIndex == 0x03) Serial.print(channel[3]);
       if (printIndex == 0x04) Serial.print(F(" THR "));
-      if (printIndex == 0x05) Serial.print(currentThrottle);
+      if (printIndex == 0x05) Serial.print(mainThrottle);
       if (printIndex == 0x06) Serial.print(F(" MTHR "));
       if (printIndex == 0x07) Serial.print(manualThrottle);
       if (printIndex == 0x08) Serial.print(F(" ITHR "));
@@ -1944,6 +2372,21 @@ void print_info(uint8_t index) {
       if (printIndex == 0x15) Serial.println(pidAltHold);
     }
     break;
+
+    case 8: {
+      (printIndex <= 0x09) ? printIndex ++ : printIndex = 0;
+      if (printIndex == 0x00) Serial.print(F("THR "));
+      if (printIndex == 0x01) Serial.print(mainThrottle);
+      if (printIndex == 0x02) Serial.print(F(" HVF "));
+      if (printIndex == 0x03) Serial.print(hoverFactor);
+      if (printIndex == 0x04) Serial.print(F(" OTO "));
+      if (printIndex == 0x05) Serial.print(otoNewSet);
+      if (printIndex == 0x06) Serial.print(F(" INP "));
+      if (printIndex == 0x07) Serial.print(filteredDistance);
+      if (printIndex == 0x08) Serial.print(F(" PID "));
+      if (printIndex == 0x09) Serial.println(PID.output[3]);
+    }
+    break;
   }
 }
 
@@ -1951,12 +2394,14 @@ void print_info(uint8_t index) {
   toggle LEDs
 /*******************************************************/
 void toggle_leds(void) {
-  (quadX.leds & LED_YELLOW) ? digitalWrite(LED_YELLOW_PIN, HIGH) : digitalWrite(LED_YELLOW_PIN, LOW);
-  (quadX.leds & LED_GREEN) ? digitalWrite(LED_GREEN_PIN, HIGH) : digitalWrite(LED_GREEN_PIN, LOW);
-  (quadX.leds & LED_BLUE) ? digitalWrite(LED_BLUE_PIN, HIGH) : digitalWrite(LED_BLUE_PIN, LOW);
-  (quadX.leds & LED_RED) ? digitalWrite(LED_RED_PIN, HIGH) : digitalWrite(LED_RED_PIN, LOW);
+  /*board LEDs*/
+  (copter.leds & LED_YELLOW) ? digitalWrite(LED_YELLOW_PIN, HIGH) : digitalWrite(LED_YELLOW_PIN, LOW);
+  (copter.leds & LED_GREEN) ? digitalWrite(LED_GREEN_PIN, HIGH) : digitalWrite(LED_GREEN_PIN, LOW);
+  (copter.leds & LED_BLUE) ? digitalWrite(LED_BLUE_PIN, HIGH) : digitalWrite(LED_BLUE_PIN, LOW);
+  (copter.leds & LED_RED) ? digitalWrite(LED_RED_PIN, HIGH) : digitalWrite(LED_RED_PIN, LOW);
 
-  if (quadX.leds & LED_FRONT) {
+  /*front frame LEDs*/
+  if (copter.leds & LED_FRONT) {
     digitalWrite(LED_FRONT_LEFT, HIGH);
     digitalWrite(LED_FRONT_RIGHT, HIGH);
   } else {
@@ -1964,7 +2409,8 @@ void toggle_leds(void) {
     digitalWrite(LED_FRONT_RIGHT, LOW);
   }
 
-  if (quadX.leds & LED_REAR) {
+  /*rear frame LEDs*/
+  if (copter.leds & LED_REAR) {
     digitalWrite(LED_REAR_LEFT, HIGH);
     digitalWrite(LED_REAR_RIGHT, HIGH);
   } else {
@@ -1978,25 +2424,27 @@ void toggle_leds(void) {
 /*******************************************************/
 void blink_leds(void) {
   unsigned long previousDisplayPeriod;
-  unsigned long previousBlinkPeriod;
+  unsigned long previousBlinkPeriod = millis();
   uint8_t indexBlink = 0;
 
-  quadX.leds |= LED_BLUE | LED_YELLOW | LED_FRONT | LED_REAR;
+  copter.leds |= LED_BLUE | LED_YELLOW | LED_FRONT | LED_REAR;
   toggle_leds();
 
   while (true) {
+    /*blink LEDs*/
     if (millis() - previousBlinkPeriod >= 100) {
       previousBlinkPeriod = millis();
 
-      quadX.leds ^= LED_YELLOW | LED_FRONT | LED_REAR;
+      copter.leds ^= LED_YELLOW | LED_FRONT | LED_REAR;
       toggle_leds();
 
       indexBlink ++;
     }
 
+    /*to do*/
     if (micros() - previousDisplayPeriod >= 5000) {
       previousDisplayPeriod = micros();
-      seven_seg(0b10011111, 0b11010101, 0b11011111, 0b11100001);
+      update_display(0b10011111, 0b11010101, 0b11011111, 0b11100001);
     }
 
     if (indexBlink >= 10) break;
@@ -2009,7 +2457,7 @@ void blink_leds(void) {
 /*******************************************/
 bool BMP180_read_calibration(void) {
   Wire.beginTransmission(BMP180_ADDRESS);
-  Wire.write(BMP180_AC1_ADDRESS); //first address of calibration values
+  Wire.write(BMP180_AC1_ADDRESS); /*first address of calibration values*/
   Wire.endTransmission();
   Wire.requestFrom(BMP180_ADDRESS, 22, true);
 
@@ -2103,13 +2551,13 @@ void BMP180_calculate(void) {
   int32_t x1, x2, x3, b3, b5, b6, p, tmp;
   uint32_t b4, b7;
 
-  //temperature calculation
+  /*temperature calculation*/
   x1 = ((int32_t)BMP180.UT.val - BMP180.ac6) * BMP180.ac5 >> 15;
   x2 = ((int32_t)BMP180.mc << 11) / (x1 + BMP180.md);
   b5 = x1 + x2;
-  BMP180.temperature = (b5 * 10 + 8) >> 4; //in 0.01 degC (same as MS5611 temperature)
+  BMP180.temperature = (b5 * 10 + 8) >> 4; /*in 0.01 degC (same as MS5611 temperature)*/
 
-  //pressure calculation
+  /*pressure calculation*/
   b6 = b5 - 4000;
   x1 = (BMP180.b2 * (b6 * b6 >> 12)) >> 11; 
   x2 = BMP180.ac2 * b6 >> 11;
@@ -2136,13 +2584,13 @@ void BMP180_calculate(void) {
 /*******************************************************/
 uint8_t BMP180_update(void) {
   if (micros() < BMP180.timeOut) return 0;
-  BMP180.timeOut = micros() + BMP180_WAIT_UT_READ; //wait 4.5ms to read temperature + 1.5ms margin (6ms)
+  BMP180.timeOut = micros() + BMP180_WAIT_UT_READ; /*wait 4.5ms to read temperature + 1.5ms margin (6ms)*/
 
   if (BMP180.status) {
     BMP180_UT_read();
     BMP180_UP_start();
     BMP180.status = false;
-    BMP180.timeOut += BMP180_WAIT_UP_READ; //wait 27ms (6ms+21ms) to read pressure 
+    BMP180.timeOut += BMP180_WAIT_UP_READ; /*wait 27ms (6ms+21ms) to read pressure*/
     return 1;
   } else {
     BMP180_UP_read();
@@ -2183,7 +2631,7 @@ void MS5611_init(void) {
 void MS5611_read_calibration(void) {
   for (uint8_t i = 1; i < 7; i ++) {
     Wire.beginTransmission(MS5611_ADDRESS);
-    Wire.write(0xA0 + (i * 2)); //first address of calibration data
+    Wire.write(0xA0 + (i * 2)); /*first address of calibration data*/
     Wire.endTransmission();
 
     Wire.requestFrom(MS5611_ADDRESS, 2, true);
@@ -2253,21 +2701,21 @@ bool MS5611_UP_read(void) {
 bool MS5611_calculate(void) {
   int32_t OFF2, SENS2, delt;
 
-  //temperature calculation
+  /*temperature calculation*/
   int64_t dT = (int32_t)MS5611.ut.val - ((int32_t)MS5611.c[5] << 8);
   MS5611.temperature = 2000 + ((dT * MS5611.c[6]) >> 23);
 
-  //pressure calculation
+  /*pressure calculation*/
   int64_t OFF  = ((uint32_t)MS5611.c[2] << 16) + ((dT * MS5611.c[4]) >> 7);
   int64_t SENS = ((uint32_t)MS5611.c[1] << 15) + ((dT * MS5611.c[3]) >> 8);
 
-  //second order temperature compensation
-  if (MS5611.temperature < 2000) { //temperature lower than 20st.C 
+  /*second order temperature compensation*/
+  if (MS5611.temperature < 2000) { /*temperature lower than 20st.C*/ 
     delt = MS5611.temperature - 2000;
     delt  = (5 * delt * delt);
     OFF2  = delt >> 1;
     SENS2 = delt >> 2;
-    if (MS5611.temperature < -1500) { //temperature lower than -15st.C
+    if (MS5611.temperature < -1500) { /*temperature lower than -15st.C*/
       delt  = MS5611.temperature + 1500;
       delt  = (delt * delt);
       OFF2  += (7 * delt);
@@ -2293,7 +2741,7 @@ float MS5611_alt_est(float pressure) {
 /*******************************************/
 uint8_t MS5611_update(void) {
   if (micros() < MS5611.timeOut) return 0;
-  MS5611.timeOut = micros() + MS5611_WAIT_UT_UP_READ; //wait 8.5ms to read temperature and pressure + 1.5ms margin (10ms)
+  MS5611.timeOut = micros() + MS5611_WAIT_UT_UP_READ; /*wait 8.5ms to read temperature and pressure + 1.5ms margin (10ms)*/
 
   if (MS5611.status) {
     MS5611_UT_read();
@@ -2310,14 +2758,41 @@ uint8_t MS5611_update(void) {
 }
 #endif
 
+#if defined(VL53L1x)
 /*******************************************************
-  altitude hold pid
+  VL53L1X init
+/*******************************************************/
+void VL53L1X_init(void) {
+  sensor.init();
+  sensor.setTimeout(500);
+
+  /*
+  Use long distance mode and allow up to 50000 us (50 ms) for a measurement.
+  You can change these settings to adjust the performance of the sensor, but
+  the minimum timing budget is 20 ms for short distance mode and 33 ms for
+  medium and long distance modes. See the VL53L1X datasheet for more
+  information on range and timing limits.
+  */
+  sensor.setDistanceMode(VL53L1X::Short);
+  sensor.setMeasurementTimingBudget(20000);
+
+  /*
+  Start continuous readings at a rate of one measurement every 50 ms (the inter-measurement period).
+  This period should be at least as long as the timing budget.
+  */
+  sensor.startContinuous(50);
+}
+#endif
+
+#if ALT_HOLD_MODE
+/*******************************************************
+  altitude hold mode
 /*******************************************************/
 void altitude_hold(uint8_t index) {
   static uint8_t altHoldIndex  = 0;
   static uint8_t readTempIndex = 0;
 
-  //temperature buffer
+  /*temperature buffer*/
   if (altHoldIndex == 0) {
     if (readTempIndex == 0) {
       MS5611_UT_read();
@@ -2350,25 +2825,25 @@ void altitude_hold(uint8_t index) {
     }
   }
 
-  //pressure buffer
+  /*pressure buffer*/
   if (altHoldIndex == 1) { 
     int32_t OFF2, SENS2, delt;
 
-    //temperature calculation
+    /*temperature calculation*/
     int64_t dT = (int32_t)rawTemperature - ((int32_t)MS5611.c[5] << 8);
     MS5611.temperature = 2000 + ((dT * MS5611.c[6]) >> 23);
 
-    //pressure calculation
+    /*pressure calculation*/
     int64_t OFF  = ((uint32_t)MS5611.c[2] << 16) + ((dT * MS5611.c[4]) >> 7);
     int64_t SENS = ((uint32_t)MS5611.c[1] << 15) + ((dT * MS5611.c[3]) >> 8);
 
-    //second order temperature compensation
-    if (MS5611.temperature < 2000) { //temperature lower than 20st.C 
+    /*second order temperature compensation*/
+    if (MS5611.temperature < 2000) { /*temperature lower than 20st.C*/
       delt = MS5611.temperature - 2000;
       delt  = (5 * delt * delt);
       OFF2  = delt >> 1;
       SENS2 = delt >> 2;
-      if (MS5611.temperature < -1500) { //temperature lower than -15st.C
+      if (MS5611.temperature < -1500) { /*temperature lower than -15st.C*/
         delt  = MS5611.temperature + 1500;
         delt  = (delt * delt);
         OFF2  += (7 * delt);
@@ -2396,7 +2871,7 @@ void altitude_hold(uint8_t index) {
 
     actualPressureFast = (float)(pressureSum / (float)PRESSURE_INDEX);
 
-    //complementary filter
+    /*complementary filter*/
     actualPressureSlow = (float)((actualPressureSlow * 0.985) + (actualPressureFast * 0.015));
     actualPressureDiff = (float)(actualPressureSlow - actualPressureFast);
     actualPressureDiff = constrain(actualPressureDiff, -8, 8);
@@ -2405,11 +2880,11 @@ void altitude_hold(uint8_t index) {
       actualPressureSlow -= (actualPressureDiff / 6.0);
     }
 
-    //minimum oscilation pressure
+    /*minimum oscilation pressure*/
     actualPressure = actualPressureSlow;
   }
 
-  //altitude hold pid
+  /*altitude hold PID*/
   if (altHoldIndex == 2) { 
     if (statusManualAltitude) {
       previousParachutePressure = (actualPressure * 10);
@@ -2425,13 +2900,13 @@ void altitude_hold(uint8_t index) {
       parachuteIndex = 0;
     }
 
-    //altidude hold on?
+    /*altidude hold on?*/
     if (statusAltitudeHold) {
       if (altHoldSetPoint == 0) {
         altHoldSetPoint = actualPressure;
       }
 
-      //manual currentThrottle
+      /*manual mainThrottle*/
       statusManualAltitude = false;                                                    
       manualThrottle = 0;                                                           
       if (channel[3] > 1600) {                                                        
@@ -2445,7 +2920,7 @@ void altitude_hold(uint8_t index) {
         manualThrottle = (float)((channel[3] - 1400.0) / 2.5);                              
       }
 
-      //auto correction currentThrottle
+      /*auto correction mainThrottle*/
       altitudeErrorSum -= altitudeErrorBuffer[altitudeErrorIndex];
       altitudeErrorBuffer[altitudeErrorIndex] = MS5611_alt_est(altHoldSetPoint) - MS5611_alt_est(actualPressure);
       altitudeErrorSum += altitudeErrorBuffer[altitudeErrorIndex];
@@ -2464,7 +2939,7 @@ void altitude_hold(uint8_t index) {
         adjustThrottle = constrain(adjustThrottle, -120, 120);
       }
 
-      //altitude hold PID                               
+      /*altitude hold PID*/                               
       errorAltHold = actualPressure - altHoldSetPoint;         
 
       uint8_t kp  = constrain(map(channel[6], 990, 2000, 1, 15), 1, 15);    
@@ -2485,7 +2960,7 @@ void altitude_hold(uint8_t index) {
       pidAltHold = pTermAltHold + iTermAltHold + dTermAltHold;
       pidAltHold = constrain(pidAltHold, -MAX_PID_OUTPUT, MAX_PID_OUTPUT);
     } else {
-      initialThrottle = currentThrottle;
+      initialThrottle = mainThrottle;
       statusManualAltitude = true;
       adjustThrottle = 0;
       altHoldSetPoint = 0;
@@ -2503,15 +2978,93 @@ void altitude_hold(uint8_t index) {
   if (altHoldIndex >= index) altHoldIndex = 0;
 }
 
+#endif
+
+#if HOVER_MODE
 /*******************************************************
-  pin change interrupt (reading radio channels)
+  hover mode
+/*******************************************************/
+void hover_mode(void) {
+  static unsigned long previousHoverPeriod = micros();
+
+  /*read distance only once per 35ms*/
+  if (micros() - previousHoverPeriod >= HOVER_CTRL_PERIOD) {
+    previousHoverPeriod = micros();
+
+    /*read distance in millimeters*/
+    uint16_t rawDistance = sensor.readRangeContinuousMillimeters();
+
+    /*measured distance between valid range?*/
+    if ((rawDistance > 10) && (rawDistance < 2001)) {
+      filteredDistance = rawDistance;
+
+      /*filter distance measured*/
+      filteredDistance = (0.9 * filteredDistance) + (0.1 * measure_0);
+      measure_0 = filteredDistance;
+
+      /*hover controller enabled*/
+      if (statusHover) {
+        uint8_t dist = constrain(map(channel[6], 990, 1990, 20, 50), 20, 50);
+        targetDistance = (float)round((0.8 * targetDistance) + (0.2 * dist * 10));
+        //targetDistance = 200;
+
+        /*Kp=0.12,Ki=0.01,Kd=1.3-1.83, lim=+-150, hoverF=1300, step=+-3*/
+        PID.kp[3] = 0.12; //(float)(constrain(map(channel[6], 990, 2000, 10, 30), 10, 30) / 10.0);
+        PID.ki[3] = 0.01;
+        PID.kd[3] = 1.30; //(float)(constrain(map(channel[7], 990, 2000, 100, 200), 100, 200) / 100.0); //1.83 e 1.30
+
+        pid_controller_update(3, targetDistance, filteredDistance);
+
+        /*1300 +-50 +-400, 1000, 1800*/ 
+        hoverFactor = constrain(HOVER_FACTOR + otoNewSet + PID.output[3], MIN_THROTTLE, MAX_THROTTLE); 
+        hoverCounter ++;
+      }
+
+      /*take off*/
+      if (hoverCounter == 35) {
+        if ((200 - filteredDistance) < 0) {
+          otoNewSet = otoNewSet - map(abs(200-filteredDistance), 0, 200, 0, 50); //50
+        } else {
+          otoNewSet = otoNewSet + map(abs(200-filteredDistance), 0, 200, 0, 50); //50
+        }   
+
+        otoNewSet = constrain(otoNewSet, -100, 100);
+      }
+    } else if (rawDistance > 2000) { /*measured distance over max. value?*/
+      filteredDistance = round(targetDistance * 1.3);
+    } else if (rawDistance < 0) { /*measured distance under min. value?*/
+      filteredDistance = 0;
+    }
+  }
+
+  if (statusHover) { /*hover mode enable*/
+    if (hoverThrottle < round(hoverFactor)) hoverThrottle += 3;
+    if (hoverThrottle > round(hoverFactor)) hoverThrottle -= 3;
+
+    hoverThrottle = constrain(hoverThrottle, MIN_THROTTLE, MAX_THROTTLE);
+  } else { /*hover mode disable*/
+    hoverThrottle = MIN_THROTTLE;
+    targetDistance = 200;
+
+    hoverCounter = 0;
+    hoverFactor = 0;
+    otoNewSet = 0;
+
+    PID.output[3] = 0;
+    PID.i_term[3] = 0;
+  }
+}
+#endif
+
+/*******************************************************
+  pin change interrupt (radio in PPM mode)
 /*******************************************************/
 ISR(PCINT0_vect) {
-  static unsigned long previousPulseWidth;
+  static unsigned long previousPulseWidth = micros();
   static uint8_t channelIndex = 0;
 
-  //read pulse width PPM mode (PCINT3)
-  if (PINB & B00000100) { 
+  /*read pulse width PPM mode (PCINT3)*/
+  if (PINB & 0b00000100) { 
     unsigned long pulseWidth = micros() - previousPulseWidth;
     if (pulseWidth < 0) pulseWidth += 0xFFFFFFFF;
     previousPulseWidth = micros();
