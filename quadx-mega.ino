@@ -699,13 +699,8 @@ void loop() {
 
     /*runs motors, change carefully if needed*/
     run_motors();  
-
-    //print_parameters(8);
   }
 
-  /*ctrl loop period, do not change*/
-  // while (micros() - previousCtrlLoopPeriod < CTRL_LOOP_PERIOD);
-  // previousCtrlLoopPeriod = micros();
 }
 
 /*******************************************************
